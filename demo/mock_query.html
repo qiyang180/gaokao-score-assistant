@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>河南省2026年普通高等学校招生考试成绩查询</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #fff;
+        color: #000;
+        font-family: "Microsoft YaHei", "SimSun", Arial, sans-serif;
+        font-size: 16px;
+      }
+
+      .page {
+        min-height: 100vh;
+      }
+
+      .masthead {
+        height: 250px;
+        display: grid;
+        place-items: center;
+        border-bottom: 5px solid #d40000;
+      }
+
+      .masthead h1 {
+        margin: 0;
+        color: #d40000;
+        font-size: 62px;
+        line-height: 1;
+        letter-spacing: 18px;
+        font-weight: 700;
+      }
+
+      .content {
+        width: 1250px;
+        max-width: calc(100vw - 40px);
+        margin: 26px auto 0;
+      }
+
+      .query-title {
+        width: 100%;
+        padding-bottom: 14px;
+        border-bottom: 2px solid #111;
+        color: #000080;
+        font-size: 23px;
+        font-weight: 700;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 46px;
+        align-items: start;
+      }
+
+      #QueryForm {
+        padding-top: 18px;
+      }
+
+      .form-row {
+        display: flex;
+        align-items: center;
+        min-height: 50px;
+        gap: 10px;
+      }
+
+      .form-row .label {
+        width: 90px;
+        text-align: right;
+        font-weight: 700;
+      }
+
+      .query-type {
+        width: auto;
+        font-size: 15px;
+      }
+
+      .query-type label {
+        margin-right: 10px;
+        font-weight: 400;
+      }
+
+      input[type="text"] {
+        width: 182px;
+        height: 31px;
+        padding: 3px 6px;
+        border: 1px solid #222;
+        border-radius: 3px;
+        font-size: 16px;
+      }
+
+      input[type="radio"] {
+        transform: translateY(1px);
+      }
+
+      #TencentCaptcha {
+        width: 181px;
+        height: 36px;
+        display: inline-grid;
+        place-items: center;
+        background: #0052d9;
+        color: #fff;
+        border: 0;
+        cursor: pointer;
+        user-select: none;
+        font-size: 19px;
+      }
+
+      #TencentCaptcha.verified {
+        background: #0b8f40;
+      }
+
+      .QueryButton {
+        width: 292px;
+        height: 48px;
+        border: 2px solid #063121;
+        border-radius: 6px;
+        background: #009d6b;
+        color: #fff;
+        font-size: 21px;
+        font-weight: 700;
+        box-shadow: 3px 3px 3px rgb(0 0 0 / 35%);
+        cursor: pointer;
+      }
+
+      #QueryBtn {
+        margin-top: 22px;
+      }
+
+      .notes {
+        margin-top: 72px;
+        color: #0000ff;
+        font-size: 15px;
+        line-height: 2.35;
+      }
+
+      #HEAODCContent_Container {
+        min-height: 500px;
+        padding-top: 20px;
+      }
+
+      #tabInfo_ShowPZCJ {
+        width: 430px;
+        border-collapse: collapse;
+        color: #000;
+        background: #fff;
+      }
+
+      #tabInfo_ShowPZCJ td {
+        height: 38px;
+        border: 1px solid #999;
+        padding: 7px 12px;
+        font-size: 16px;
+      }
+
+      .tdXH,
+      .tdKM {
+        width: 150px;
+        background: #f4f4f4;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .tdXX {
+        width: 280px;
+        text-align: left;
+      }
+
+      #KSJYM,
+      #Querytip {
+        margin-top: 14px;
+        color: #0000ff;
+        line-height: 1.8;
+      }
+
+      .btn-return {
+        width: 160px;
+        height: 38px;
+        margin-top: 20px;
+        font-size: 17px;
+      }
+
+      .mask-container {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .mask {
+        width: 210px;
+        height: 100px;
+        display: inline-block;
+        opacity: 0.08;
+      }
+
+      .mask::after {
+        content: attr(data-content);
+      }
+
+      .captcha-shade {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgb(0 0 0 / 48%);
+        z-index: 10;
+      }
+
+      .captcha-shade.show {
+        display: flex;
+      }
+
+      .captcha-dialog {
+        width: 452px;
+        padding: 14px 14px 12px;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 10px 34px rgb(0 0 0 / 32%);
+      }
+
+      .captcha-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #999;
+        font-size: 18px;
+      }
+
+      .captcha-close {
+        border: 0;
+        background: transparent;
+        color: #999;
+        font-size: 34px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .captcha-prompt {
+        margin: 8px 0 8px;
+        font-size: 24px;
+      }
+
+      .captcha-prompt strong {
+        margin-left: 8px;
+        letter-spacing: 10px;
+        font-weight: 400;
+      }
+
+      .captcha-image {
+        position: relative;
+        width: 424px;
+        height: 304px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 58% 18%, #f4fbff 0 7%, transparent 8%),
+          linear-gradient(126deg, transparent 0 38%, rgb(20 68 96 / 70%) 39% 60%, transparent 61%),
+          linear-gradient(105deg, #7fb3c9 0 22%, #3f829f 23% 46%, #cfe4ec 47% 48%, #285268 49% 100%);
+      }
+
+      .captcha-image::before {
+        content: "";
+        position: absolute;
+        inset: 128px -20px 0;
+        background:
+          radial-gradient(ellipse at 40% 10%, rgb(255 255 255 / 72%) 0 13%, transparent 14%),
+          linear-gradient(165deg, transparent 0 46%, #d8edf1 47% 49%, transparent 50%),
+          linear-gradient(#9fcad5, #e3eef0 50%, #7f959c);
+      }
+
+      .captcha-word {
+        position: absolute;
+        border: 0;
+        background: transparent;
+        color: #f7b400;
+        font-family: "KaiTi", "Microsoft YaHei", serif;
+        font-size: 38px;
+        font-weight: 700;
+        cursor: pointer;
+        text-shadow: 0 2px 1px rgb(87 80 0 / 25%);
+      }
+
+      .captcha-word.selected::after {
+        content: attr(data-order);
+        position: absolute;
+        top: -12px;
+        right: -18px;
+        width: 31px;
+        height: 31px;
+        display: grid;
+        place-items: center;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: #1a73e8;
+        color: #fff;
+        font: 700 20px Arial, sans-serif;
+      }
+
+      .captcha-actions {
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .captcha-icons {
+        display: flex;
+        gap: 22px;
+        color: #999;
+        font-size: 32px;
+      }
+
+      .captcha-confirm {
+        width: 79px;
+        height: 39px;
+        border: 0;
+        border-radius: 4px;
+        background: #1a73e8;
+        color: #fff;
+        font-size: 20px;
+        cursor: pointer;
+      }
+
+      .captcha-error {
+        min-height: 20px;
+        color: #c70000;
+        font-size: 14px;
+      }
+
+      @media (max-width: 768px) {
+        .masthead {
+          height: 150px;
+        }
+
+        .masthead h1 {
+          font-size: 34px;
+          letter-spacing: 6px;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .content {
+          max-width: calc(100vw - 24px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="masthead">
+        <h1>河南省教育考试院</h1>
+      </header>
+
+      <main class="content">
+        <div class="query-title">河南省2026年普通高等学校招生考试成绩查询</div>
+        <div class="layout">
+          <section id="LeftDiv">
+            <form id="QueryForm">
+              <div class="form-row query-type">
+                <span class="label">查询方式：</span>
+                <label><input id="sfzradio" name="Qtype" type="radio" checked value="0" /> 身份证号</label>
+                <label><input id="bmxhradio" name="Qtype" type="radio" value="1" /> 报名序号</label>
+              </div>
+              <div class="form-row">
+                <span class="label">考生号：</span>
+                <input id="Ksh" type="text" name="Ksh" tabindex="2" placeholder="请输入考生号" autocomplete="off" />
+              </div>
+              <div class="form-row">
+                <span id="xhTip" class="label">身份证号：</span>
+                <input id="Idcard" type="text" name="Idcard" tabindex="3" placeholder="请输入身份证" autocomplete="off" />
+              </div>
+              <div class="form-row">
+                <span class="label">验证码：</span>
+                <div id="TencentCaptcha" role="button" tabindex="0">点击进行验证</div>
+              </div>
+              <input id="CaptchaTicket" type="hidden" name="CaptchaTicket" value="" />
+              <input id="CaptchaRand" type="hidden" name="CaptchaRand" value="" />
+              <input name="HeaoAntiforgeryFieldName" type="hidden" value="demo-antiforgery-token" />
+              <input id="QueryBtn" type="button" class="QueryButton" value="查  询" />
+            </form>
+
+            <div class="notes">
+              <div>查询说明：</div>
+              <div>[1] 请依次填写考生号、身份证号、验证码，</div>
+              <div>然后点击查询。</div>
+              <div>[2] 所查总分不含照顾分。</div>
+              <div>[3] 如果无查询结果，请认真检查考生号、身份证号或者报名序号填写是否正确；</div>
+            </div>
+          </section>
+
+          <section id="HEAODCContent_Container" class="Container" style="position: relative;"></section>
+        </div>
+      </main>
+    </div>
+
+    <div id="captchaShade" class="captcha-shade" aria-hidden="true">
+      <div class="captcha-dialog" role="dialog" aria-modal="true" aria-label="安全验证">
+        <div class="captcha-head">
+          <span>安全验证</span>
+          <button id="captchaClose" class="captcha-close" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="captcha-prompt">请依次点击：<strong>记 辨 饱</strong></div>
+        <div class="captcha-image" aria-label="图片点选验证码">
+          <button class="captcha-word" type="button" data-word="记" style="left: 70px; top: 78px;">记</button>
+          <button class="captcha-word" type="button" data-word="饱" style="left: 165px; top: 84px;">饱</button>
+          <button class="captcha-word" type="button" data-word="辨" style="left: 28px; top: 190px;">辨</button>
+        </div>
+        <div class="captcha-actions">
+          <div class="captcha-icons" aria-hidden="true"><span>?</span><span>⟳</span></div>
+          <button id="captchaConfirm" class="captcha-confirm" type="button">确定</button>
+        </div>
+        <div id="captchaError" class="captcha-error"></div>
+      </div>
+    </div>
+
+    <script>
+      const demoScores = {
+        "26410000000001": {
+          name: "测试学生A",
+          idCard: "410000********0001",
+          registrationNo: "244100000001",
+          chinese: "126",
+          math: "142",
+          english: "139",
+          physics: "96",
+          chemistry: "91",
+          biology: "87",
+          listening: "10",
+          total: "681",
+        },
+        "26410000000002": {
+          name: "测试学生B",
+          idCard: "410000********0002",
+          registrationNo: "244100000002",
+          chinese: "118",
+          math: "135",
+          english: "132",
+          physics: "89",
+          chemistry: "84",
+          biology: "84",
+          listening: "12",
+          total: "642",
+        },
+      };
+
+      const fallbackScores = {
+        name: "测试学生",
+        idCard: "410000********0000",
+        registrationNo: "244100000000",
+        chinese: "110",
+        math: "120",
+        english: "125",
+        physics: "82",
+        chemistry: "80",
+        biology: "83",
+        listening: "9",
+        total: "600",
+      };
+
+      const captchaOrder = ["记", "辨", "饱"];
+      const selectedWords = [];
+
+      function byId(id) {
+        return document.getElementById(id);
+      }
+
+      function showError(message) {
+        byId("captchaError").textContent = message;
+      }
+
+      function setVerified() {
+        byId("CaptchaTicket").value = `demo-ticket-${Date.now()}`;
+        byId("CaptchaRand").value = "demo-randstr";
+        byId("TencentCaptcha").textContent = "验证成功";
+        byId("TencentCaptcha").classList.add("verified");
+      }
+
+      function resetCaptcha() {
+        selectedWords.length = 0;
+        document.querySelectorAll(".captcha-word").forEach((button) => {
+          button.classList.remove("selected");
+          button.removeAttribute("data-order");
+        });
+        byId("CaptchaTicket").value = "";
+        byId("CaptchaRand").value = "";
+        byId("TencentCaptcha").textContent = "点击进行验证";
+        byId("TencentCaptcha").classList.remove("verified");
+        showError("");
+      }
+
+      function openCaptcha() {
+        if (!checkInput(false)) {
+          return;
+        }
+        selectedWords.length = 0;
+        document.querySelectorAll(".captcha-word").forEach((button) => {
+          button.classList.remove("selected");
+          button.removeAttribute("data-order");
+        });
+        byId("captchaShade").classList.add("show");
+        byId("captchaShade").setAttribute("aria-hidden", "false");
+        showError("");
+      }
+
+      function closeCaptcha() {
+        byId("captchaShade").classList.remove("show");
+        byId("captchaShade").setAttribute("aria-hidden", "true");
+      }
+
+      function setBmxh() {
+        const target = byId("Idcard");
+        if (!target) {
+          return;
+        }
+        byId("xhTip").textContent = "报名序号：";
+        target.value = "";
+        target.id = "Bmxh";
+        target.name = "Bmxh";
+        target.placeholder = "请输入报名序号";
+      }
+
+      function setSfz() {
+        const target = byId("Bmxh");
+        if (!target) {
+          return;
+        }
+        byId("xhTip").textContent = "身份证号：";
+        target.value = "";
+        target.id = "Idcard";
+        target.name = "Idcard";
+        target.placeholder = "请输入身份证号";
+      }
+
+      function checkInput(checkCaptcha) {
+        const ksh = byId("Ksh").value.trim();
+        if (!ksh) {
+          alert("请输入考生号");
+          byId("Ksh").focus();
+          return false;
+        }
+
+        const qtype = document.querySelector("input[name='Qtype']:checked").value;
+        if (qtype === "0") {
+          const idCard = byId("Idcard").value.trim();
+          if (!idCard) {
+            alert("请输入身份证号");
+            byId("Idcard").focus();
+            return false;
+          }
+        } else {
+          const registrationNo = byId("Bmxh").value.trim();
+          if (!registrationNo) {
+            alert("请输入报名序号");
+            byId("Bmxh").focus();
+            return false;
+          }
+        }
+
+        if (checkCaptcha && (!byId("CaptchaTicket").value || !byId("CaptchaRand").value)) {
+          alert("请先进行验证码验证");
+          return false;
+        }
+
+        return true;
+      }
+
+      function showWaterMark(content) {
+        const maskContainer = document.querySelector(".mask-container");
+        if (!maskContainer) {
+          return;
+        }
+        maskContainer.innerHTML = "";
+        for (let index = 0; index < 12; index += 1) {
+          const mark = document.createElement("div");
+          mark.className = "mask";
+          mark.dataset.content = content;
+          maskContainer.appendChild(mark);
+        }
+      }
+
+      function renderResult(scores, ksh, credential) {
+        const verifyCode = "DEMO3B627BEA3ED4C5479211945FA900BBAF";
+        byId("HEAODCContent_Container").innerHTML = `
+          <table id="tabInfo_ShowPZCJ">
+            <tbody>
+              <tr><td class="tdXH">考&nbsp;生&nbsp;号</td><td id="tdPZKSH">${ksh}</td></tr>
+              <tr><td class="tdXH">姓　　名</td><td id="tdPZXM">${scores.name}</td></tr>
+              <tr><td class="tdXH">身份证号</td><td id="tdPZSFZH">${credential}</td></tr>
+              <tr><td class="tdXH">报名序号</td><td id="tdPZXH">${scores.registrationNo}</td></tr>
+              <tr><td class="tdKM">语文</td><td class="tdXX">${scores.chinese}</td></tr>
+              <tr><td class="tdKM">数学</td><td class="tdXX">${scores.math}</td></tr>
+              <tr><td class="tdKM">外语</td><td class="tdXX">${scores.english}</td></tr>
+              <tr><td class="tdKM">物理</td><td class="tdXX">${scores.physics}</td></tr>
+              <tr><td class="tdKM">化学</td><td class="tdXX">${scores.chemistry}</td></tr>
+              <tr><td class="tdKM">生物学</td><td class="tdXX">${scores.biology}</td></tr>
+              <tr><td class="tdKM">听力</td><td class="tdXX">${scores.listening}</td></tr>
+              <tr><td class="tdKM">总分</td><td class="tdXX">${scores.total}</td></tr>
+            </tbody>
+          </table>
+          <div id="KSJYM">校验码：${verifyCode}</div>
+          <input type="hidden" id="HAEEATip" value="" />
+          <div class="app-tishi">
+            <div><input id="RestQuery" type="button" class="QueryButton btn-return" value="返回查询" /></div>
+            <div id="Querytip">查询说明：<br /> [1] 所查总分不含照顾分。<br /> [2] 如果无查询结果，请认真检查考生号、身份证号或者报名序号填写是否有误；<br /></div>
+          </div>
+          <div class="mask-container"></div>
+        `;
+        showWaterMark(`${ksh}${scores.name}F${scores.chinese}${scores.math}${scores.english}${scores.physics}${scores.chemistry}${scores.biology}${scores.listening}${scores.total}J${verifyCode}H20260625140537`);
+        byId("RestQuery").addEventListener("click", restQuery);
+      }
+
+      function queryData() {
+        if (!checkInput(true)) {
+          return false;
+        }
+        byId("QueryBtn").value = "正在查询中...";
+        byId("QueryBtn").disabled = true;
+
+        window.setTimeout(() => {
+          const ksh = byId("Ksh").value.trim();
+          const qtype = document.querySelector("input[name='Qtype']:checked").value;
+          const credential = qtype === "0" ? byId("Idcard").value.trim() : byId("Bmxh").value.trim();
+          const scores = demoScores[ksh] || { ...fallbackScores, idCard: credential };
+          renderResult(scores, ksh, credential || scores.idCard);
+          byId("QueryBtn").value = "查  询";
+          byId("QueryBtn").disabled = false;
+          resetCaptcha();
+        }, 350);
+
+        return false;
+      }
+
+      function restQuery() {
+        byId("HEAODCContent_Container").innerHTML = "";
+        resetCaptcha();
+      }
+
+      byId("sfzradio").addEventListener("click", setSfz);
+      byId("bmxhradio").addEventListener("click", setBmxh);
+      byId("TencentCaptcha").addEventListener("click", openCaptcha);
+      byId("TencentCaptcha").addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openCaptcha();
+        }
+      });
+      byId("captchaClose").addEventListener("click", closeCaptcha);
+      byId("captchaConfirm").addEventListener("click", () => {
+        if (selectedWords.join("") !== captchaOrder.join("")) {
+          showError("请按提示顺序依次点击：记、辨、饱");
+          return;
+        }
+        setVerified();
+        closeCaptcha();
+      });
+      byId("QueryBtn").addEventListener("click", queryData);
+
+      document.querySelectorAll(".captcha-word").forEach((button) => {
+        button.addEventListener("click", () => {
+          if (button.classList.contains("selected")) {
+            return;
+          }
+          const nextWord = captchaOrder[selectedWords.length];
+          const word = button.dataset.word;
+          if (word !== nextWord) {
+            selectedWords.length = 0;
+            document.querySelectorAll(".captcha-word").forEach((item) => {
+              item.classList.remove("selected");
+              item.removeAttribute("data-order");
+            });
+            showError("顺序不正确，请重新依次点击：记、辨、饱");
+            return;
+          }
+          selectedWords.push(word);
+          button.classList.add("selected");
+          button.dataset.order = String(selectedWords.length);
+          showError("");
+        });
+      });
+
+      if (new URLSearchParams(window.location.search).get("autoCaptcha") === "1") {
+        setVerified();
+      }
+    </script>
+  </body>
+</html>

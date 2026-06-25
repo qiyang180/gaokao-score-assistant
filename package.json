@@ -1,0 +1,17 @@
+{
+  "name": "gaokao-score-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:students": "python tools/normalize_students.py --input data/students.xlsx --out work/students.csv",
+    "demo": "powershell -ExecutionPolicy Bypass -File tools/run_demo.ps1",
+    "query": "node src/query_scores.mjs",
+    "summary": "python tools/build_summary.py --results output/results.jsonl --out output/score_summary.xlsx",
+    "night": "powershell -ExecutionPolicy Bypass -File tools/run_query.ps1",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.54.0"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "queryUrl": "",
+  "headless": false,
+  "skipCaptchaPrompt": true,
+  "slowMoMs": 80,
+  "navigationTimeoutMs": 30000,
+  "resultTimeoutMs": 30000,
+  "minDelayMs": 200,
+  "maxDelayMs": 500,
+  "queryMode": "idCard",
+  "outputDir": "output/demo",
+  "selectors": {
+    "name": "",
+    "idCard": "#Idcard",
+    "admissionNo": "",
+    "examineeNo": "#Ksh",
+    "registrationNo": "#Bmxh",
+    "queryModeIdCard": "#sfzradio",
+    "queryModeRegistrationNo": "#bmxhradio",
+    "captcha": "",
+    "submit": "#QueryBtn",
+    "resultContainer": "#HEAODCContent_Container"
+  },
+  "scoreMap": {
+    "总分": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='总分']/following-sibling::td[1]",
+    "语文": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='语文']/following-sibling::td[1]",
+    "数学": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='数学']/following-sibling::td[1]",
+    "外语": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='外语']/following-sibling::td[1]",
+    "物理": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='物理']/following-sibling::td[1]",
+    "历史": "",
+    "化学": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='化学']/following-sibling::td[1]",
+    "生物": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='生物' or normalize-space()='生物学']/following-sibling::td[1]",
+    "思想政治": "",
+    "地理": "",
+    "听力": "xpath=//table[@id='tabInfo_ShowPZCJ']//td[normalize-space()='听力']/following-sibling::td[1]"
+  }
+}

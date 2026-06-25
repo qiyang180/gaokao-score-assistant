@@ -1,0 +1,39 @@
+{
+  "queryUrl": "https://pzwb.haeea.cn/stu",
+  "headless": false,
+  "slowMoMs": 80,
+  "navigationTimeoutMs": 30000,
+  "resultTimeoutMs": 30000,
+  "minDelayMs": 3000,
+  "maxDelayMs": 8000,
+  "queryMode": "idCard",
+  "skipCaptchaPrompt": false,
+  "captchaWaitTimeoutMs": 120000,
+  "captchaPollMs": 200,
+  "captchaAutoConfirm": false,
+  "outputDir": "output",
+  "selectors": {
+    "name": "",
+    "idCard": "",
+    "admissionNo": "",
+    "examineeNo": "",
+    "registrationNo": "",
+    "queryModeIdCard": "",
+    "queryModeRegistrationNo": "",
+    "captcha": "",
+    "submit": "",
+    "resultContainer": ""
+  },
+  "scoreMap": {
+    "总分": "",
+    "语文": "",
+    "数学": "",
+    "外语": "",
+    "物理": "",
+    "历史": "",
+    "化学": "",
+    "生物": "",
+    "思想政治": "",
+    "地理": ""
+  }
+}

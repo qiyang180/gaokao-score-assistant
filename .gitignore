@@ -1,0 +1,12 @@
+config.local.json
+data/*
+!data/students_template.csv
+output/*
+!output/.gitkeep
+work/*
+!work/.gitkeep
+node_modules/
+package-lock.json
+__pycache__/
+*.pyc
+*.log
