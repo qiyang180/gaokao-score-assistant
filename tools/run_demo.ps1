@@ -29,8 +29,16 @@ $queryArgs = @(
   "work\demo_students.csv",
   "--config",
   $Config,
+  "--output-dir",
+  "output\demo",
   "--results",
   "output\demo\results.jsonl",
+  "--events",
+  "output\demo\events.jsonl",
+  "--failed-log",
+  "output\demo\failed_students.csv",
+  "--control-file",
+  "output\demo\control.json",
   "--url",
   $mockPageUrl
 )
@@ -49,4 +57,5 @@ Write-Host ""
 Write-Host "Demo complete."
 Write-Host "Screenshots: output\demo\screenshots"
 Write-Host "Raw results: output\demo\results.jsonl"
+Write-Host "Events: output\demo\events.jsonl"
 Write-Host "Summary workbook: output\demo\summary.xlsx"

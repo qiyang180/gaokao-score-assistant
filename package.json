@@ -2,6 +2,7 @@
   "name": "gaokao-score-agent",
   "version": "0.1.0",
   "private": true,
+  "main": "app/main.cjs",
   "type": "module",
   "scripts": {
     "prepare:students": "python tools/normalize_students.py --input data/students.xlsx --out work/students.csv",
@@ -9,9 +10,39 @@
     "query": "node src/query_scores.mjs",
     "summary": "python tools/build_summary.py --results output/results.jsonl --out output/score_summary.xlsx",
     "night": "powershell -ExecutionPolicy Bypass -File tools/run_query.ps1",
-    "install:browsers": "playwright install chromium"
+    "install:browsers": "playwright install chromium",
+    "app:dev": "node app/dev.mjs",
+    "app:vite": "vite --config app/renderer/vite.config.mjs",
+    "app:build": "vite build --config app/renderer/vite.config.mjs",
+    "app:start": "electron .",
+    "dist:win": "npm run app:build && electron-builder --win"
   },
   "dependencies": {
-    "playwright": "^1.54.0"
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "playwright": "^1.54.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.7"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "local.gaokao.score.agent",
+    "productName": "高考成绩查询助手",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "app/main.cjs",
+      "app/preload.cjs",
+      "dist/renderer/**/*",
+      "src/**/*",
+      "tools/**/*",
+      "config.example.json",
+      "package.json"
+    ],
+    "asar": false
   }
 }

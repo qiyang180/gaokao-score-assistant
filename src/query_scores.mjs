@@ -5,12 +5,20 @@ import { stdin as input, stdout as output } from 'node:process';
 import { chromium } from 'playwright';
 
 const DEFAULT_RESULTS = path.join('output', 'results.jsonl');
+const EVENT_PREFIX = '@@GAOKAO_EVENT@@ ';
 
 function parseArgs(argv) {
   const args = {
     students: path.join('data', 'students.csv'),
     config: 'config.local.json',
-    results: DEFAULT_RESULTS,
+    results: '',
+    events: '',
+    outputDir: '',
+    failedLog: '',
+    controlFile: '',
+    startIndex: 1,
+    resume: false,
+    resetResults: false,
     url: '',
   };
 
@@ -26,13 +34,57 @@ function parseArgs(argv) {
     } else if (key === '--results') {
       args.results = value;
       i += 1;
+    } else if (key === '--events') {
+      args.events = value;
+      i += 1;
+    } else if (key === '--output-dir') {
+      args.outputDir = value;
+      i += 1;
+    } else if (key === '--failed-log') {
+      args.failedLog = value;
+      i += 1;
+    } else if (key === '--control-file') {
+      args.controlFile = value;
+      i += 1;
+    } else if (key === '--start' || key === '--start-index') {
+      args.startIndex = Number.parseInt(value, 10);
+      i += 1;
+    } else if (key === '--resume') {
+      args.resume = true;
+    } else if (key === '--reset-results') {
+      args.resetResults = true;
     } else if (key === '--url') {
       args.url = value;
       i += 1;
     }
   }
 
+  if (!Number.isInteger(args.startIndex) || args.startIndex < 1) {
+    throw new Error('--start must be a positive 1-based student index');
+  }
+
   return args;
+}
+
+class StopRunError extends Error {
+  constructor(message = '用户停止查询') {
+    super(message);
+    this.name = 'StopRunError';
+  }
+}
+
+class SkipStudentError extends Error {
+  constructor(message = '用户跳过当前学生') {
+    super(message);
+    this.name = 'SkipStudentError';
+  }
+}
+
+class RetryStudentError extends Error {
+  constructor(message = '用户重试当前学生') {
+    super(message);
+    this.name = 'RetryStudentError';
+  }
 }
 
 function requireFile(filePath, label) {
@@ -115,6 +167,179 @@ function loadStudents(csvPath) {
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function writeJsonl(filePath, data) {
+  if (!filePath) {
+    return;
+  }
+  ensureDir(path.dirname(filePath));
+  fs.appendFileSync(filePath, `${JSON.stringify(data)}\n`, 'utf8');
+}
+
+function createEventEmitter(eventsPath) {
+  return (type, payload = {}) => {
+    const event = {
+      type,
+      at: new Date().toISOString(),
+      ...payload,
+    };
+    writeJsonl(eventsPath, event);
+    console.log(`${EVENT_PREFIX}${JSON.stringify(event)}`);
+  };
+}
+
+function readControl(controlFile) {
+  if (!controlFile || !fs.existsSync(controlFile)) {
+    return { command: 'resume' };
+  }
+  try {
+    return JSON.parse(fs.readFileSync(controlFile, 'utf8'));
+  } catch {
+    return { command: 'resume' };
+  }
+}
+
+function clearControl(controlFile) {
+  if (!controlFile) {
+    return;
+  }
+  ensureDir(path.dirname(controlFile));
+  fs.writeFileSync(controlFile, JSON.stringify({ command: 'resume', updatedAt: new Date().toISOString() }), 'utf8');
+}
+
+async function waitForResumeOrCommand(
+  page,
+  controlFile,
+  emitEvent,
+  studentName = '',
+  allowStudentCommands = true,
+) {
+  if (!controlFile) {
+    return;
+  }
+  let pausedEmitted = false;
+  while (true) {
+    const control = readControl(controlFile);
+    if (control.command === 'stop') {
+      throw new StopRunError();
+    }
+    if (control.command === 'skip') {
+      clearControl(controlFile);
+      if (allowStudentCommands) {
+        throw new SkipStudentError();
+      }
+    }
+    if (control.command === 'retry') {
+      clearControl(controlFile);
+      if (allowStudentCommands) {
+        throw new RetryStudentError();
+      }
+    }
+    if (control.command !== 'pause') {
+      if (pausedEmitted) {
+        emitEvent('run:resumed', { studentName });
+      }
+      return;
+    }
+    if (!pausedEmitted) {
+      emitEvent('run:paused', { studentName });
+      pausedEmitted = true;
+    }
+    await page.waitForTimeout(300);
+  }
+}
+
+async function waitWithControl(page, ms, runtime, studentName = '', allowStudentCommands = true) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    await waitForResumeOrCommand(
+      page,
+      runtime.controlFile,
+      runtime.emitEvent,
+      studentName,
+      allowStudentCommands,
+    );
+    await page.waitForTimeout(Math.min(300, Math.max(0, deadline - Date.now())));
+  }
+}
+
+function readJsonlResults(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).filter((line) => line.trim());
+  const results = [];
+  for (const [index, line] of lines.entries()) {
+    try {
+      results.push(JSON.parse(line));
+    } catch (error) {
+      throw new Error(`invalid JSON in existing results at line ${index + 1}: ${error.message}`);
+    }
+  }
+  return results;
+}
+
+function prepareAppendableFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  const text = fs.readFileSync(filePath, 'utf8');
+  if (text && !text.endsWith('\n')) {
+    fs.appendFileSync(filePath, '\n', 'utf8');
+  }
+}
+
+function csvEscape(value) {
+  const text = value === undefined || value === null ? '' : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function appendCsvRow(filePath, headers, row) {
+  ensureDir(path.dirname(filePath));
+  const exists = fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
+  const lines = [];
+  if (!exists) {
+    lines.push(headers.map(csvEscape).join(','));
+  }
+  lines.push(headers.map((header) => csvEscape(row[header])).join(','));
+  fs.appendFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
+}
+
+function appendFailureLog(filePath, result, student, index) {
+  const headers = [
+    'index',
+    'row',
+    '姓名',
+    '身份证号',
+    '准考证号',
+    '考生号',
+    '报名序号',
+    'status',
+    'error',
+    'screenshotPath',
+    'queriedAt',
+  ];
+  appendCsvRow(filePath, headers, {
+    index,
+    row: student.__row || '',
+    姓名: student['姓名'] || '',
+    身份证号: student['身份证号'] || '',
+    准考证号: student['准考证号'] || '',
+    考生号: student['考生号'] || '',
+    报名序号: student['报名序号'] || '',
+    status: result.status || '',
+    error: result.error || '',
+    screenshotPath: result.screenshotPath || '',
+    queriedAt: result.queriedAt || '',
+  });
+}
+
+function isFailedResult(result) {
+  return result.status !== 'ok' || Object.keys(result.scores || {}).length === 0;
 }
 
 function sanitizeFileName(value) {
@@ -466,7 +691,7 @@ function randomDelay(minMs, maxMs) {
   return Math.floor(min + Math.random() * Math.max(0, max - min));
 }
 
-async function waitForManualCaptcha(page, rl, config, studentName) {
+async function waitForManualCaptcha(page, rl, config, studentName, runtime) {
   if (config.skipCaptchaPrompt) {
     return;
   }
@@ -476,14 +701,18 @@ async function waitForManualCaptcha(page, rl, config, studentName) {
     const pollMs = Number(config.captchaPollMs || 200);
     const startedAt = Date.now();
     let sawChallengeWindow = false;
+    runtime.emitEvent('captcha:waiting', { studentName, timeoutMs });
     console.log(`请在浏览器中为 ${studentName} 完成图片验证，脚本检测到验证成功后会自动继续。`);
     while (Date.now() - startedAt < timeoutMs) {
+      await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
       if (await isMainTencentCaptchaVerified(page)) {
+        runtime.emitEvent('captcha:verified', { studentName });
         return 'verified';
       }
       if (config.captchaAutoConfirm && await isTencentCaptchaFrameVerified(page)) {
         await confirmTencentCaptchaIfVisible(page);
         await page.waitForTimeout(pollMs);
+        runtime.emitEvent('captcha:verified', { studentName });
         return 'verified';
       }
       const challengeOpen = await isTencentCaptchaChallengeOpen(page);
@@ -495,10 +724,12 @@ async function waitForManualCaptcha(page, rl, config, studentName) {
       await page.waitForTimeout(pollMs);
     }
     console.warn('等待图片验证超时，仍将尝试提交；如果失败，请重新运行该学生查询。');
+    runtime.emitEvent('captcha:timeout', { studentName });
     return 'timeout';
   }
 
   const selector = (config.selectors || {}).captcha;
+  runtime.emitEvent('captcha:manual-input', { studentName });
   const captchaCode = await rl.question(`请输入 ${studentName} 的验证码；如果你已在浏览器中手动输入，直接按回车：`);
   if (!captchaCode.trim()) {
     return 'manual';
@@ -773,12 +1004,12 @@ async function waitForResultReady(page, selectors, scoreMap, timeoutMs) {
   }
 }
 
-async function queryOneStudent(page, rl, config, student, index, total, screenshotDir) {
+async function queryOneStudent(page, rl, config, student, index, total, screenshotDir, runtime) {
   const selectors = config.selectors || {};
   const studentName = student['姓名'];
   const screenshotPath = path.join(screenshotDir, `${sanitizeFileName(studentName)}.png`);
 
-    const publicStudent = {
+  const publicStudent = {
     name: studentName,
     idCardMasked: maskSecret(student['身份证号']),
     admissionNoMasked: maskSecret(student['准考证号']),
@@ -787,16 +1018,20 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
   };
 
   try {
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
+    runtime.emitEvent('student:start', { index, total, student: publicStudent });
     console.log(`\n[${index}/${total}] 查询 ${studentName}`);
     await page.goto(config.queryUrl, {
       waitUntil: 'domcontentloaded',
       timeout: config.navigationTimeoutMs || 30000,
     });
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
     const queryMode = resolveQueryMode(config, student);
     await selectQueryMode(page, selectors, queryMode);
 
     const filled = await fillStudentFields(page, selectors, student, queryMode);
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
     if (!filled.name && await hasLikelyNameField(page, selectors.name)) {
       console.warn(`未自动定位到姓名输入框：${studentName}`);
     }
@@ -810,7 +1045,8 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
     } else if (student['身份证号'] && !filled.idCard) {
       console.warn(`未自动定位到身份证号输入框：${studentName}`);
     }
-    const captchaState = await waitForManualCaptcha(page, rl, config, studentName);
+    const captchaState = await waitForManualCaptcha(page, rl, config, studentName, runtime);
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
     if (captchaState === 'verified') {
       console.log(`已识别 ${studentName} 图片验证成功，自动点击查询。`);
     } else if (captchaState === 'timeout') {
@@ -818,26 +1054,34 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
     }
 
     await submitQuery(page, selectors.submit);
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
     await waitForResultReady(page, selectors, config.scoreMap, config.resultTimeoutMs || 30000);
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
     const mappedScores = await extractByScoreMap(page, config.scoreMap);
     const tableScores = await extractGenericTables(page);
     const textScores = await extractGenericScoreText(page, selectors.resultContainer);
     const scores = mergeScores(mappedScores, { ...textScores, ...tableScores });
+    const hasScores = Object.keys(scores).length > 0;
+    await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
     return {
-      status: 'ok',
+      status: hasScores ? 'ok' : 'no_scores',
       student: publicStudent,
       scores,
       screenshotPath,
+      error: hasScores ? '' : '未提取到成绩；可能是学生信息有误、无查询结果，或成绩区域选择器需要调整。',
       queriedAt: new Date().toISOString(),
     };
   } catch (error) {
     await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    if (error instanceof StopRunError || error instanceof RetryStudentError) {
+      throw error;
+    }
     return {
-      status: 'failed',
+      status: error instanceof SkipStudentError ? 'skipped' : 'failed',
       student: publicStudent,
       scores: {},
       screenshotPath: fs.existsSync(screenshotPath) ? screenshotPath : '',
@@ -849,6 +1093,13 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (
+    args.config === 'config.local.json'
+    && !fs.existsSync(args.config)
+    && fs.existsSync('config.example.json')
+  ) {
+    args.config = 'config.example.json';
+  }
   requireFile(args.config, 'config');
   requireFile(args.students, 'students CSV');
 
@@ -860,13 +1111,68 @@ async function main() {
     throw new Error('config.queryUrl is required');
   }
 
+  const outputDir = args.outputDir || config.outputDir || 'output';
+  config.outputDir = outputDir;
+  args.results = args.results || path.join(outputDir, 'results.jsonl');
+  args.events = args.events || path.join(outputDir, 'events.jsonl');
+  args.failedLog = args.failedLog || path.join(outputDir, 'failed_students.csv');
+  args.controlFile = args.controlFile || path.join(outputDir, 'control.json');
+
   const students = loadStudents(args.students);
-  const outputDir = config.outputDir || 'output';
   const screenshotDir = path.join(outputDir, 'screenshots');
+  const emitEvent = createEventEmitter(args.events);
+  const runtime = {
+    controlFile: args.controlFile,
+    emitEvent,
+  };
+
   ensureDir(outputDir);
   ensureDir(screenshotDir);
   ensureDir(path.dirname(args.results));
-  fs.writeFileSync(args.results, '', 'utf8');
+  ensureDir(path.dirname(args.events));
+  ensureDir(path.dirname(args.failedLog));
+  clearControl(args.controlFile);
+
+  const existingResults = args.resume ? readJsonlResults(args.results) : [];
+  const resumeStartIndex = args.resume ? existingResults.length + 1 : 1;
+  const effectiveStartIndex = Math.max(args.startIndex, resumeStartIndex);
+  const appendMode = !args.resetResults && (args.resume || effectiveStartIndex > 1);
+
+  if (!appendMode) {
+    fs.writeFileSync(args.events, '', 'utf8');
+  } else {
+    prepareAppendableFile(args.events);
+  }
+
+  emitEvent('run:start', {
+    total: students.length,
+    startIndex: effectiveStartIndex,
+    outputDir,
+    resultsPath: args.results,
+    eventsPath: args.events,
+    failedLogPath: args.failedLog,
+  });
+
+  if (effectiveStartIndex > students.length) {
+    console.log(`没有需要继续查询的学生：当前起始序号 ${effectiveStartIndex} 已超过学生总数 ${students.length}。`);
+    emitEvent('run:done', {
+      status: 'empty',
+      total: students.length,
+      resultsPath: args.results,
+      failedLogPath: args.failedLog,
+    });
+    return;
+  }
+
+  if (appendMode) {
+    prepareAppendableFile(args.results);
+    prepareAppendableFile(args.failedLog);
+    console.log(`续查模式：从第 ${effectiveStartIndex} 个学生开始，结果追加到 ${args.results}`);
+  } else {
+    fs.writeFileSync(args.results, '', 'utf8');
+    fs.writeFileSync(args.failedLog, '', 'utf8');
+    console.log(`全量模式：从第 1 个学生开始，旧结果已清空。`);
+  }
 
   const browser = await chromium.launch({
     // 设置对应的浏览器例如下面的Microsoft；其他浏览器chrome是Google
@@ -880,18 +1186,68 @@ async function main() {
   });
   const page = await context.newPage();
   const rl = readline.createInterface({ input, output });
+  let stopped = false;
 
   try {
-    for (let i = 0; i < students.length; i += 1) {
-      const result = await queryOneStudent(page, rl, config, students[i], i + 1, students.length, screenshotDir);
+    for (let i = effectiveStartIndex - 1; i < students.length; i += 1) {
+      let result;
+      let attempt = 1;
+      while (true) {
+        try {
+          result = await queryOneStudent(
+            page,
+            rl,
+            config,
+            students[i],
+            i + 1,
+            students.length,
+            screenshotDir,
+            runtime,
+          );
+          break;
+        } catch (error) {
+          if (!(error instanceof RetryStudentError)) {
+            throw error;
+          }
+          attempt += 1;
+          emitEvent('student:retrying', {
+            index: i + 1,
+            total: students.length,
+            attempt,
+            reason: error.message,
+          });
+          console.warn(`重新查询第 ${i + 1} 个学生，第 ${attempt} 次尝试。`);
+          await page.goto('about:blank').catch(() => {});
+        }
+      }
       fs.appendFileSync(args.results, `${JSON.stringify(result)}\n`, 'utf8');
+      emitEvent(result.status === 'ok' ? 'student:ok' : 'student:failed', {
+        index: i + 1,
+        total: students.length,
+        result,
+      });
+      if (isFailedResult(result)) {
+        appendFailureLog(args.failedLog, result, students[i], i + 1);
+        console.warn(`已记录失败/无成绩学生：${students[i]['姓名']} -> ${args.failedLog}`);
+      }
 
       if (i < students.length - 1) {
         const delayMs = randomDelay(config.minDelayMs, config.maxDelayMs);
         console.log(`等待 ${Math.round(delayMs / 1000)} 秒后继续...`);
-        await page.waitForTimeout(delayMs);
+        await waitWithControl(page, delayMs, runtime, students[i]['姓名'], false);
       }
     }
+  } catch (error) {
+    if (!(error instanceof StopRunError)) {
+      throw error;
+    }
+    stopped = true;
+    emitEvent('run:stopped', {
+      resultsPath: args.results,
+      failedLogPath: args.failedLog,
+      reason: error.message,
+    });
+    console.warn(error.message);
   } finally {
     rl.close();
     await context.close();
@@ -899,7 +1255,14 @@ async function main() {
   }
 
   console.log(`\n查询完成，原始结果已写入 ${args.results}`);
+  console.log(`失败/无成绩清单写入 ${args.failedLog}`);
   console.log('运行 npm run summary 生成 Excel 汇总表。');
+  emitEvent('run:done', {
+    status: stopped ? 'stopped' : 'completed',
+    total: students.length,
+    resultsPath: args.results,
+    failedLogPath: args.failedLog,
+  });
 }
 
 main().catch((error) => {
