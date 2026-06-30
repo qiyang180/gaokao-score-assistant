@@ -1,32 +1,37 @@
 {
   "name": "gaokao-score-agent",
   "version": "0.1.0",
+  "description": "Windows 本地高考成绩半自动查询与汇总工具",
+  "author": "Local",
   "private": true,
   "main": "app/main.cjs",
   "type": "module",
   "scripts": {
-    "prepare:students": "python tools/normalize_students.py --input data/students.xlsx --out work/students.csv",
+    "prepare:students": "node tools/normalize_students.mjs --input data/students.xlsx --out work/students.csv",
     "demo": "powershell -ExecutionPolicy Bypass -File tools/run_demo.ps1",
+    "test:controls": "node tools/test_controls.mjs",
+    "test:packaged": "node tools/test_packaged.mjs",
     "query": "node src/query_scores.mjs",
-    "summary": "python tools/build_summary.py --results output/results.jsonl --out output/score_summary.xlsx",
+    "summary": "node tools/build_summary.mjs --results output/results.jsonl --out output/score_summary.xlsx",
     "night": "powershell -ExecutionPolicy Bypass -File tools/run_query.ps1",
-    "install:browsers": "playwright install chromium",
+    "install:browsers": "node tools/install_browsers.mjs",
     "app:dev": "node app/dev.mjs",
     "app:vite": "vite --config app/renderer/vite.config.mjs",
     "app:build": "vite build --config app/renderer/vite.config.mjs",
     "app:start": "electron .",
-    "dist:win": "npm run app:build && electron-builder --win"
+    "dist:win": "npm run app:build && npm run install:browsers && electron-builder --win --x64"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.3.1",
+    "exceljs": "^4.4.0",
     "playwright": "^1.54.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "vite": "^6.0.7"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "electron-builder": "^25.1.8"
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.7"
   },
   "build": {
     "appId": "local.gaokao.score.agent",
@@ -34,15 +39,40 @@
     "directories": {
       "output": "dist-electron"
     },
+    "extraResources": [
+      {
+        "from": "vendor/playwright-browsers",
+        "to": "playwright-browsers",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "files": [
       "app/main.cjs",
       "app/preload.cjs",
       "dist/renderer/**/*",
       "src/**/*",
       "tools/**/*",
+      "!tools/**/*.py",
+      "!tools/**/__pycache__/**",
+      "!tools/install_browsers.mjs",
+      "!tools/test_*.mjs",
+      "!tools/*.ps1",
       "config.example.json",
       "package.json"
     ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "asar": false
   }
 }

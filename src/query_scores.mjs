@@ -20,6 +20,9 @@ function parseArgs(argv) {
     resume: false,
     resetResults: false,
     url: '',
+    minDelayMs: null,
+    maxDelayMs: null,
+    resultTimeoutMs: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -56,11 +59,36 @@ function parseArgs(argv) {
     } else if (key === '--url') {
       args.url = value;
       i += 1;
+    } else if (key === '--min-delay-ms') {
+      args.minDelayMs = Number(value);
+      i += 1;
+    } else if (key === '--max-delay-ms') {
+      args.maxDelayMs = Number(value);
+      i += 1;
+    } else if (key === '--result-timeout-ms') {
+      args.resultTimeoutMs = Number(value);
+      i += 1;
     }
   }
 
   if (!Number.isInteger(args.startIndex) || args.startIndex < 1) {
     throw new Error('--start must be a positive 1-based student index');
+  }
+  for (const [name, value] of [
+    ['--min-delay-ms', args.minDelayMs],
+    ['--max-delay-ms', args.maxDelayMs],
+    ['--result-timeout-ms', args.resultTimeoutMs],
+  ]) {
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      throw new Error(`${name} must be a non-negative number`);
+    }
+  }
+  if (
+    args.minDelayMs !== null
+    && args.maxDelayMs !== null
+    && args.minDelayMs > args.maxDelayMs
+  ) {
+    throw new Error('--min-delay-ms cannot be greater than --max-delay-ms');
   }
 
   return args;
@@ -949,59 +977,55 @@ async function confirmTencentCaptchaIfVisible(page) {
 }
 
 async function waitForResultReady(page, selectors, scoreMap, timeoutMs) {
-  if (selectors.resultContainer) {
-    await page.locator(selectors.resultContainer).waitFor({
-      state: 'visible',
-      timeout: timeoutMs,
-    });
-  } else {
-    await page.waitForLoadState('networkidle', { timeout: timeoutMs }).catch(() => {});
-  }
-
   const scoreSelectors = Object.values(scoreMap || {}).filter(Boolean);
-  if (selectors.resultContainer || scoreSelectors.length) {
-    await page.waitForFunction(
-      ({ resultContainer, selectors: configuredScoreSelectors }) => {
-        const textFromSelector = (selector) => {
-          if (!selector) {
-            return '';
-          }
-          let element = null;
-          if (selector.startsWith('xpath=')) {
-            element = document.evaluate(
-              selector.slice('xpath='.length),
-              document,
-              null,
-              XPathResult.FIRST_ORDERED_NODE_TYPE,
-              null,
-            ).singleNodeValue;
-          } else {
-            element = document.querySelector(selector);
-          }
-          return element?.textContent?.trim() || '';
-        };
-
-        if (configuredScoreSelectors.some((selector) => textFromSelector(selector))) {
-          return true;
+  return page.waitForFunction(
+    ({ resultContainer, selectors: configuredScoreSelectors }) => {
+      const textFromSelector = (selector) => {
+        if (!selector) {
+          return '';
         }
+        let element = null;
+        if (selector.startsWith('xpath=')) {
+          element = document.evaluate(
+            selector.slice('xpath='.length),
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null,
+          ).singleNodeValue;
+        } else {
+          element = document.querySelector(selector);
+        }
+        return element?.textContent?.trim() || '';
+      };
 
-        const container = resultContainer ? document.querySelector(resultContainer) : document.body;
-        const containerText = container?.textContent?.trim() || '';
-        return Boolean(
-          document.querySelector('#RestQuery')
-            || document.querySelector('#tabInfo_ShowPZCJ')
-            || containerText.includes('查询失败')
-            || containerText.includes('无查询结果')
-            || containerText.includes('很抱歉'),
-        );
-      },
-      {
-        resultContainer: selectors.resultContainer || '',
-        selectors: scoreSelectors,
-      },
-      { timeout: timeoutMs },
-    ).catch(() => {});
-  }
+      if (configuredScoreSelectors.some((selector) => textFromSelector(selector))) {
+        return true;
+      }
+
+      let container = document.body;
+      if (resultContainer) {
+        try {
+          container = document.querySelector(resultContainer) || document.body;
+        } catch {
+          container = document.body;
+        }
+      }
+      const containerText = container?.textContent?.trim() || '';
+      return Boolean(
+        document.querySelector('#RestQuery')
+          || document.querySelector('#tabInfo_ShowPZCJ')
+          || containerText.includes('查询失败')
+          || containerText.includes('无查询结果')
+          || containerText.includes('很抱歉'),
+      );
+    },
+    {
+      resultContainer: selectors.resultContainer || '',
+      selectors: scoreSelectors,
+    },
+    { timeout: timeoutMs },
+  ).then(() => true).catch(() => false);
 }
 
 async function queryOneStudent(page, rl, config, student, index, total, screenshotDir, runtime) {
@@ -1056,7 +1080,18 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
     await submitQuery(page, selectors.submit);
     await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
-    await waitForResultReady(page, selectors, config.scoreMap, config.resultTimeoutMs || 30000);
+    const resultTimeoutMs = Number(config.resultTimeoutMs || 10000);
+    runtime.emitEvent('result:waiting', { studentName, timeoutMs: resultTimeoutMs });
+    const resultDetected = await waitForResultReady(
+      page,
+      selectors,
+      config.scoreMap,
+      resultTimeoutMs,
+    );
+    runtime.emitEvent('result:ready', { studentName, detected: resultDetected });
+    if (!resultDetected) {
+      console.warn(`等待 ${studentName} 成绩区域超时，继续尝试解析当前页面。`);
+    }
     await waitForResumeOrCommand(page, runtime.controlFile, runtime.emitEvent, studentName);
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -1106,6 +1141,15 @@ async function main() {
   const config = JSON.parse(fs.readFileSync(args.config, 'utf8'));
   if (args.url) {
     config.queryUrl = args.url;
+  }
+  if (args.minDelayMs !== null) {
+    config.minDelayMs = args.minDelayMs;
+  }
+  if (args.maxDelayMs !== null) {
+    config.maxDelayMs = args.maxDelayMs;
+  }
+  if (args.resultTimeoutMs !== null) {
+    config.resultTimeoutMs = args.resultTimeoutMs;
   }
   if (!config.queryUrl) {
     throw new Error('config.queryUrl is required');

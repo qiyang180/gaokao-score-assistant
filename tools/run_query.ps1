@@ -22,7 +22,7 @@ if (-not (Test-Path $Config)) {
   throw "Config file not found: $Config"
 }
 
-python tools\normalize_students.py --input $Students --out work\students.csv
+node tools\normalize_students.mjs --input $Students --out work\students.csv
 if ($LASTEXITCODE -ne 0) {
   throw "Student normalization failed."
 }
@@ -71,7 +71,7 @@ if ($LASTEXITCODE -ne 0) {
   throw "Score query failed."
 }
 
-& npm run summary -- --results $Results --students "work\students.csv" --out $Summary
+node tools\build_summary.mjs --results $Results --students "work\students.csv" --out $Summary
 if ($LASTEXITCODE -ne 0) {
   throw "Summary generation failed."
 }

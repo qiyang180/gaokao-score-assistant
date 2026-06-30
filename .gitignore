@@ -6,9 +6,9 @@ output/*
 work/*
 !work/.gitkeep
 node_modules/
-package-lock.json
 dist/
 dist-electron/
+vendor/playwright-browsers/
 __pycache__/
 *.pyc
 *.log

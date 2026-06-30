@@ -20,7 +20,10 @@ function App() {
   const [studentsFile, setStudentsFile] = useState('');
   const [outputRoot, setOutputRoot] = useState('');
   const [queryUrl, setQueryUrl] = useState('');
-  const [preview, setPreview] = useState({ students: [], stats: null });
+  const [minDelaySeconds, setMinDelaySeconds] = useState('1');
+  const [maxDelaySeconds, setMaxDelaySeconds] = useState('2');
+  const [resultTimeoutSeconds, setResultTimeoutSeconds] = useState('10');
+  const [preview, setPreview] = useState({ students: [], stats: null, errors: [] });
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [runState, setRunState] = useState('idle');
   const [current, setCurrent] = useState(null);
@@ -43,6 +46,12 @@ function App() {
       setDefaults(data);
       setQueryUrl(data.queryUrl || '');
       setOutputRoot(data.outputRoot || '');
+      setMinDelaySeconds(String(Number(data.minDelayMs ?? 1000) / 1000));
+      setMaxDelaySeconds(String(Number(data.maxDelayMs ?? 2000) / 1000));
+      setResultTimeoutSeconds(String(Number(data.resultTimeoutMs ?? 10000) / 1000));
+      if (data.browserReady === false) {
+        setMessage('安装包缺少 Playwright Chromium，请重新安装完整版本。');
+      }
     });
     const unsubs = [
       window.gaokao.onRunStarted((data) => {
@@ -113,6 +122,13 @@ function App() {
       setCurrent((old) => old ? { ...old, stage: '等待人工验证码' } : old);
     } else if (event.type === 'captcha:verified') {
       setCurrent((old) => old ? { ...old, stage: '验证码已通过，正在提交' } : old);
+    } else if (event.type === 'result:waiting') {
+      setCurrent((old) => old ? { ...old, stage: '等待成绩页面返回' } : old);
+    } else if (event.type === 'result:ready') {
+      setCurrent((old) => old ? {
+        ...old,
+        stage: event.detected ? '成绩页面已返回，正在解析' : '等待超时，正在尝试解析',
+      } : old);
     } else if (event.type === 'student:ok' || event.type === 'student:failed') {
       setPaused(false);
       const result = event.result || {};
@@ -159,7 +175,7 @@ function App() {
       const data = await window.gaokao.previewStudents({ studentsFile: file });
       setPreview(data);
     } catch (error) {
-      setPreview({ students: [], stats: null });
+      setPreview({ students: [], stats: null, errors: [] });
       setMessage(error.message);
     } finally {
       setLoadingPreview(false);
@@ -188,6 +204,9 @@ function App() {
         outputRoot,
         queryUrl,
         configPath: defaults?.configPath,
+        minDelayMs: Number(minDelaySeconds) * 1000,
+        maxDelayMs: Number(maxDelaySeconds) * 1000,
+        resultTimeoutMs: Number(resultTimeoutSeconds) * 1000,
       });
     } catch (error) {
       setRunState('idle');
@@ -217,7 +236,19 @@ function App() {
     }
   }
 
-  const canStart = studentsFile && preview.students.length > 0 && runState !== 'running' && runState !== 'starting' && runState !== 'stopping';
+  const timingValid = Number.isFinite(Number(minDelaySeconds))
+    && Number.isFinite(Number(maxDelaySeconds))
+    && Number.isFinite(Number(resultTimeoutSeconds))
+    && Number(minDelaySeconds) >= 0
+    && Number(maxDelaySeconds) >= Number(minDelaySeconds)
+    && Number(resultTimeoutSeconds) >= 1;
+  const canStart = studentsFile
+    && preview.students.length > 0
+    && preview.stats?.invalid === 0
+    && timingValid
+    && runState !== 'running'
+    && runState !== 'starting'
+    && runState !== 'stopping';
   const isActive = runState === 'running' || runState === 'starting';
   const hasActiveStudent = isActive && Boolean(current?.active);
   const progressTotal = preview.students.length || current?.total || 0;
@@ -242,6 +273,18 @@ function App() {
             <h2>输入</h2>
             <button className="primary" onClick={selectStudents}>选择 Excel/CSV</button>
             <div className="path-text" title={studentsFile}>{studentsFile ? basename(studentsFile) : '未选择学生表'}</div>
+            {preview.stats && (
+              <div className={`validation-summary ${preview.stats.invalid ? 'has-errors' : ''}`}>
+                有效 {preview.stats.valid} 行 / 无效 {preview.stats.invalid} 行
+              </div>
+            )}
+            {preview.errors?.length > 0 && (
+              <div className="validation-errors">
+                {preview.errors.map((item) => (
+                  <p key={item.row}>第 {item.row} 行：{item.reasons.join('；')}</p>
+                ))}
+              </div>
+            )}
             <button onClick={() => previewStudents()} disabled={!studentsFile || loadingPreview}>
               {loadingPreview ? '校验中...' : '重新校验'}
             </button>
@@ -260,6 +303,39 @@ function App() {
                 <button onClick={selectOutputDir}>选择</button>
               </div>
             </label>
+            <div className="timing-grid">
+              <label>
+                最短间隔（秒）
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={minDelaySeconds}
+                  onChange={(event) => setMinDelaySeconds(event.target.value)}
+                />
+              </label>
+              <label>
+                最长间隔（秒）
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={maxDelaySeconds}
+                  onChange={(event) => setMaxDelaySeconds(event.target.value)}
+                />
+              </label>
+              <label className="wide">
+                结果等待上限（秒）
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={resultTimeoutSeconds}
+                  onChange={(event) => setResultTimeoutSeconds(event.target.value)}
+                />
+              </label>
+            </div>
+            {!timingValid && <div className="field-error">请检查查询间隔和结果等待时间</div>}
             <button className="primary" onClick={startRun} disabled={!canStart}>开始查询</button>
           </section>
 

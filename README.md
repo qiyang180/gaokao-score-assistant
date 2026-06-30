@@ -35,7 +35,9 @@ npm run install:browsers
 
 ### 启动本地 GUI
 
-GUI 版用于本地半自动查询：选择学生 Excel、校验预览、启动可见浏览器、实时查看验证码提示/日志/结果，支持暂停、继续、跳过、重试当前学生和停止，最后生成汇总表。
+GUI 版用于本地半自动查询：选择学生 Excel、逐行校验并预览、启动可见浏览器、实时查看验证码提示/日志/结果，支持暂停、继续、跳过、重试当前学生和停止，最后生成汇总表。无效行会显示原始行号和原因，并禁止启动查询。
+
+配置区可以直接调整学生之间的最短/最长等待时间，以及提交后等待成绩页面的上限。默认学生间隔为 1–2 秒，结果等待上限为 10 秒；成绩表一旦出现会立即继续，不会固定等满上限。
 
 首次使用需要安装桌面端依赖：
 
@@ -56,15 +58,32 @@ npm run app:dev
 npm run dist:win
 ```
 
-GUI 每次运行会在输出目录下创建独立运行文件夹，例如 `output/gui-runs/run-20260625-210000/`，里面包含：
+该命令会编译 GUI、把 Playwright Chromium 安装到项目本地目录，并生成：
+
+- `dist-electron/高考成绩查询助手 Setup 0.1.0.exe`：Windows 安装版
+- `dist-electron/高考成绩查询助手 0.1.0.exe`：portable 免安装版
+- `dist-electron/win-unpacked/`：解包测试目录
+
+安装包已内置 Chromium，不要求最终用户另装 Node、Python 或浏览器。发布版冒烟测试：
+
+```powershell
+npm run test:packaged
+```
+
+当前开发版本未配置代码签名证书和自定义图标，Windows 可能显示“未知发布者”，程序图标暂时使用 Electron 默认图标。
+
+GUI 每次运行会在输出目录下创建独立运行文件夹。开发模式默认使用 `output/gui-runs/`；安装版默认使用“文档/高考成绩查询助手/运行结果”。每个运行文件夹包含：
 
 - `students.csv`：标准化后的学生表
+- `import_report.json`：不含证件值的导入校验统计
 - `events.jsonl`：GUI 事件流
 - `results.jsonl`：原始查询结果
 - `failed_students.csv`：失败/无成绩清单
 - `score_summary.xlsx`：成绩汇总表
 - `screenshots/`：逐个学生截图
 - `run.log`：完整运行日志
+
+GUI 的 Excel 处理和查询子进程使用 Electron 自带的 Node 运行时，安装版不要求用户另外安装 Python 或 Node。开发模式仍需要 npm 来安装依赖和启动项目。
 
 4. 提前跑通本地 demo
 
@@ -82,7 +101,7 @@ demo 输出位置：
 
 demo 默认跳过验证码输入提示，便于一次性跑完。如果要手动体验验证码输入，把 `demo/config.demo.json` 里的 `skipCaptchaPrompt` 改成 `false`。
 
-如果只想手动体验官网式图片验证，可以直接用浏览器打开 `demo/mock_query.html`：点击“点击进行验证”，按提示依次点选“记、辨、饱”，然后点“确定”。`npm run demo` 会自动追加 `?autoCaptcha=1`，用于回归测试时跳过本地模拟验证。
+如果只想手动体验官网式图片验证，可以直接用浏览器打开 `demo/mock_query.html`：点击“点击进行验证”，按提示依次点选“记、辨、饱”，然后点“确定”。`npm run demo` 会自动追加 `?autoCaptcha=1`，用于回归测试时跳过本地模拟验证。如果需要人工填写验证码去掉run_demo.ps1中 `?autoCaptcha=1`
 
 5. 一键运行真实查询
 
@@ -158,7 +177,7 @@ npm run night -- -Resume
 - 失败/无成绩清单：`output/failed_students.csv`
 - 汇总表：`output/score_summary.xlsx`
 
-汇总表会默认以项目上级目录的 `2026高考成绩汇总--理科.xlsx` 为模板生成，并用 `work/students.csv` 补齐班级、身份证号码、考生号、报名序号等基础信息。
+如果项目上级目录存在 `2026高考成绩汇总--理科.xlsx`，汇总表会沿用该模板；否则生成标准汇总表。两种方式都会用 `work/students.csv` 补齐班级、身份证号码、考生号、报名序号等基础信息。
 
 ## 正式开放后需要补的内容
 

@@ -167,6 +167,26 @@ function runBuffered(command, args, options = {}) {
   });
 }
 
+function electronNodeOptions(options = {}) {
+  const env = {
+    ...process.env,
+    ...(options.env || {}),
+    ELECTRON_RUN_AS_NODE: '1',
+  };
+  const browsersPath = runtimeBrowsersPath();
+  if (browsersPath) {
+    env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+  }
+  return {
+    ...options,
+    env,
+  };
+}
+
+function runNodeBuffered(args, options = {}) {
+  return runBuffered(process.execPath, args, electronNodeOptions(options));
+}
+
 function appendRunLog(run, stream, text) {
   if (!run?.logPath || !text) {
     return;
@@ -237,10 +257,36 @@ function resolveConfigPath(preferredPath = '') {
   return candidates.find((candidate) => fs.existsSync(candidate)) || '';
 }
 
+function defaultOutputRoot() {
+  if (app.isPackaged) {
+    return path.join(app.getPath('documents'), '高考成绩查询助手', '运行结果');
+  }
+  return path.join(projectRoot, 'output', 'gui-runs');
+}
+
+function runtimeBrowsersPath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'playwright-browsers');
+  }
+  const projectBrowsers = path.join(projectRoot, 'vendor', 'playwright-browsers');
+  if (fs.existsSync(projectBrowsers)) {
+    return projectBrowsers;
+  }
+  return process.env.PLAYWRIGHT_BROWSERS_PATH || '';
+}
+
+function hasChromium(browsersPath) {
+  if (!browsersPath || !fs.existsSync(browsersPath)) {
+    return false;
+  }
+  return fs.readdirSync(browsersPath, { withFileTypes: true })
+    .some((entry) => entry.isDirectory() && entry.name.startsWith('chromium-'));
+}
+
 async function buildSummary(run, finalStatus = 'completed') {
   send('gaokao:log', { stream: 'system', text: '正在生成 Excel 汇总表...' });
-  await runBuffered('python', [
-    'tools/build_summary.py',
+  await runNodeBuffered([
+    'tools/build_summary.mjs',
     '--results',
     run.resultsPath,
     '--students',
@@ -275,11 +321,16 @@ function writeControl(command) {
 ipcMain.handle('gaokao:get-defaults', async () => {
   const configPath = resolveConfigPath();
   const config = readJson(configPath);
+  const browsersPath = runtimeBrowsersPath();
   return {
     projectRoot,
     configPath,
     queryUrl: config.queryUrl || '',
-    outputRoot: path.join(projectRoot, 'output', 'gui-runs'),
+    outputRoot: defaultOutputRoot(),
+    browserReady: app.isPackaged ? hasChromium(browsersPath) : true,
+    minDelayMs: Number(config.minDelayMs ?? 1000),
+    maxDelayMs: Number(config.maxDelayMs ?? 2000),
+    resultTimeoutMs: Number(config.resultTimeoutMs ?? 10000),
   };
 });
 
@@ -307,23 +358,29 @@ ipcMain.handle('gaokao:preview-students', async (_event, { studentsFile }) => {
   if (!studentsFile || !fs.existsSync(studentsFile)) {
     throw new Error('学生表不存在');
   }
-  const previewCsv = path.join(projectRoot, 'work', 'gui_preview_students.csv');
-  await runBuffered('python', [
-    'tools/normalize_students.py',
+  const previewDir = path.join(app.getPath('userData'), 'work');
+  const previewCsv = path.join(previewDir, 'gui_preview_students.csv');
+  const previewReport = path.join(previewDir, 'gui_preview_report.json');
+  await runNodeBuffered([
+    'tools/normalize_students.mjs',
     '--input',
     studentsFile,
     '--out',
     previewCsv,
+    '--report',
+    previewReport,
+    '--preview',
   ]);
   const students = readStudentsCsv(previewCsv);
+  const report = readJson(previewReport, {
+    stats: { total: students.length, valid: students.length, invalid: 0 },
+    errors: [],
+  });
   return {
     csvPath: previewCsv,
     students,
-    stats: {
-      total: students.length,
-      valid: students.length,
-      invalid: 0,
-    },
+    stats: report.stats,
+    errors: report.errors || [],
   };
 });
 
@@ -333,6 +390,9 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   }
   if (!options.studentsFile || !fs.existsSync(options.studentsFile)) {
     throw new Error('请先选择有效学生表');
+  }
+  if (app.isPackaged && !hasChromium(runtimeBrowsersPath())) {
+    throw new Error('安装包缺少 Playwright Chromium，请重新安装完整版本');
   }
 
   const outputRoot = options.outputRoot || path.join(projectRoot, 'output', 'gui-runs');
@@ -345,22 +405,38 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   const summaryPath = path.join(runDir, 'score_summary.xlsx');
   const screenshotsDir = path.join(runDir, 'screenshots');
   const logPath = path.join(runDir, 'run.log');
+  const importReportPath = path.join(runDir, 'import_report.json');
 
   ensureDir(runDir);
   ensureDir(screenshotsDir);
   fs.writeFileSync(logPath, '', 'utf8');
 
-  await runBuffered('python', [
-    'tools/normalize_students.py',
+  await runNodeBuffered([
+    'tools/normalize_students.mjs',
     '--input',
     options.studentsFile,
     '--out',
     studentsCsv,
+    '--report',
+    importReportPath,
   ]);
 
   const configPath = resolveConfigPath(options.configPath);
   if (!configPath) {
     throw new Error('未找到可用配置文件');
+  }
+  const minDelayMs = Number(options.minDelayMs);
+  const maxDelayMs = Number(options.maxDelayMs);
+  const resultTimeoutMs = Number(options.resultTimeoutMs);
+  if (
+    !Number.isFinite(minDelayMs)
+    || !Number.isFinite(maxDelayMs)
+    || !Number.isFinite(resultTimeoutMs)
+    || minDelayMs < 0
+    || maxDelayMs < minDelayMs
+    || resultTimeoutMs < 1000
+  ) {
+    throw new Error('查询间隔或结果等待时间设置无效');
   }
 
   const args = [
@@ -379,6 +455,12 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
     failedLogPath,
     '--control-file',
     controlFile,
+    '--min-delay-ms',
+    String(minDelayMs),
+    '--max-delay-ms',
+    String(maxDelayMs),
+    '--result-timeout-ms',
+    String(resultTimeoutMs),
     '--reset-results',
   ];
   if (options.queryUrl) {
@@ -406,10 +488,10 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   currentRun = run;
   writeControl('resume');
 
-  const child = spawn('node', args, {
+  const child = spawn(process.execPath, args, electronNodeOptions({
     cwd: projectRoot,
     windowsHide: false,
-  });
+  }));
   run.queryProcess = child;
   send('gaokao:run-started', {
     runDir,

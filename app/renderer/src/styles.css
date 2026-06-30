@@ -153,10 +153,53 @@ label {
   text-overflow: ellipsis;
 }
 
+.validation-summary {
+  color: #246b47;
+  font-size: 13px;
+}
+
+.validation-summary.has-errors {
+  color: #9d1b1b;
+}
+
+.validation-errors {
+  max-height: 112px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid #e1b0b0;
+  border-radius: 6px;
+  background: #fff4f4;
+  color: #8b1e1e;
+  font-size: 12px;
+}
+
+.validation-errors p {
+  margin: 0 0 5px;
+}
+
+.validation-errors p:last-child {
+  margin-bottom: 0;
+}
+
 .inline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+.timing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.timing-grid .wide {
+  grid-column: span 2;
+}
+
+.field-error {
+  color: #9d1b1b;
+  font-size: 12px;
 }
 
 .control-grid {
