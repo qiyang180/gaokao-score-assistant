@@ -13,6 +13,11 @@ function subscribe(channel, callback) {
 
 contextBridge.exposeInMainWorld('gaokao', {
   getDefaults: () => ipcRenderer.invoke('gaokao:get-defaults'),
+  getLicenseState: () => ipcRenderer.invoke('gaokao:get-license-state'),
+  activateLicense: (payload) => ipcRenderer.invoke('gaokao:activate-license', payload),
+  refreshLicense: () => ipcRenderer.invoke('gaokao:refresh-license'),
+  exportOfflineRequest: () => ipcRenderer.invoke('gaokao:export-offline-request'),
+  importOfflineLicense: () => ipcRenderer.invoke('gaokao:import-offline-license'),
   selectStudents: () => ipcRenderer.invoke('gaokao:select-students'),
   selectOutputDir: () => ipcRenderer.invoke('gaokao:select-output-dir'),
   previewStudents: (payload) => ipcRenderer.invoke('gaokao:preview-students', payload),

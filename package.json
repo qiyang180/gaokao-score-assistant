@@ -6,6 +6,9 @@
   "private": true,
   "main": "app/main.cjs",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "prepare:students": "node tools/normalize_students.mjs --input data/students.xlsx --out work/students.csv",
     "demo": "powershell -ExecutionPolicy Bypass -File tools/run_demo.ps1",
@@ -15,11 +18,16 @@
     "summary": "node tools/build_summary.mjs --results output/results.jsonl --out output/score_summary.xlsx",
     "night": "powershell -ExecutionPolicy Bypass -File tools/run_query.ps1",
     "install:browsers": "node tools/install_browsers.mjs",
+    "test": "npm run test:controls && npm run test:license",
+    "license:keygen": "node tools/generate_license_keys.mjs",
+    "license:server": "npm --prefix license-server start",
+    "test:license": "node --test test/license_protocol.test.mjs test/license_manager.test.mjs license-server/test/license_service.test.mjs license-server/test/app.test.mjs",
     "app:dev": "node app/dev.mjs",
     "app:vite": "vite --config app/renderer/vite.config.mjs",
-    "app:build": "vite build --config app/renderer/vite.config.mjs",
+    "app:build": "vite build --config app/renderer/vite.config.mjs && node tools/write_license_config.mjs",
     "app:start": "electron .",
-    "dist:win": "npm run app:build && npm run install:browsers && electron-builder --win --x64"
+    "dist:win": "npm run app:build && npm run install:browsers && electron-builder --win --x64",
+    "dist:win:signed": "npm run app:build && npm run install:browsers && electron-builder --win --x64 --config.win.signAndEditExecutable=true"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
@@ -51,12 +59,18 @@
     "files": [
       "app/main.cjs",
       "app/preload.cjs",
+      "app/licensing/**/*",
+      "shared/**/*",
       "dist/renderer/**/*",
+      "dist/license-config.json",
       "src/**/*",
       "tools/**/*",
       "!tools/**/*.py",
       "!tools/**/__pycache__/**",
       "!tools/install_browsers.mjs",
+      "!tools/generate_license_keys.mjs",
+      "!tools/write_license_config.mjs",
+      "!tools/lib/test_license.mjs",
       "!tools/test_*.mjs",
       "!tools/*.ps1",
       "config.example.json",
@@ -73,6 +87,6 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "asar": false
+    "asar": true
   }
 }

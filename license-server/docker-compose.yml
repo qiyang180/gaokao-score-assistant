@@ -1,0 +1,37 @@
+services:
+  license-server:
+    build:
+      context: ..
+      dockerfile: license-server/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /data/licenses.sqlite
+      LICENSE_PRIVATE_KEY_PATH: /run/secrets/license-private.pem
+      LICENSE_KEY_PASSPHRASE_FILE: /run/secrets/license-passphrase.txt
+      SECURE_COOKIES: "true"
+      TRUST_PROXY: "1"
+    volumes:
+      - license-data:/data
+      - ./secrets/license-private.pem:/run/secrets/license-private.pem:ro
+      - ./secrets/license-passphrase.txt:/run/secrets/license-passphrase.txt:ro
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - license-server
+    environment:
+      LICENSE_DOMAIN: ${LICENSE_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  license-data:
+  caddy-data:
+  caddy-config:

@@ -1,14 +1,46 @@
+# Local configuration and secrets
 config.local.json
+.env
+.env.*
+!.env.example
+**/*private*.pem
+**/*passphrase*.txt
+*.p12
+*.pfx
+.license-secrets/
+license-server/.local-admin-password.txt
+license-server/secrets/
+
+# Student data and runtime output
 data/*
 !data/students_template.csv
 output/*
 !output/.gitkeep
 work/*
 !work/.gitkeep
+*.gkreq
+*.gklic
+
+# Dependencies and build artifacts
 node_modules/
 dist/
 dist-electron/
 vendor/playwright-browsers/
+coverage/
+
+# Local databases, caches, and logs
+license-server/data/
+*.sqlite
+*.sqlite-*
+*.db
 __pycache__/
 *.pyc
 *.log
+
+# Editor and OS metadata
+.agents/
+.codex/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

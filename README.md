@@ -10,6 +10,41 @@
 
 验证码保留人工输入，不做验证码破解或绕过。
 
+仓库中的学生姓名、证件号码和成绩均为虚构测试数据。真实学生表、查询结果、截图、日志、许可证私钥和授权数据库都被 `.gitignore` 排除，禁止强制提交这些文件。
+
+## 项目结构
+
+```text
+app/                 Electron 主进程、预加载脚本和 React GUI
+src/                 Playwright 成绩查询核心
+tools/               学生表标准化、汇总、打包和测试脚本
+demo/                不连接官网的本地模拟页面与虚构数据
+shared/              客户端与授权服务共用的许可证协议
+license-server/      独立的授权服务、管理后台和 Docker 配置
+test/                授权协议与桌面端授权测试
+data/                本地学生表目录，仅提交虚构 CSV 模板
+output/、work/        运行结果与中间文件，不提交
+```
+
+开发环境需要 Windows、PowerShell、Node.js 18 或更高版本。首次克隆后安装桌面端依赖：
+
+```powershell
+npm install
+```
+
+如需运行完整授权测试或启动授权服务，还要安装服务端依赖：
+
+```powershell
+npm --prefix license-server install
+```
+
+常规回归检查：
+
+```powershell
+npm test
+npm run app:build
+```
+
 ## 当前可提前完成的工作
 
 1. 准备学生信息表
@@ -58,6 +93,13 @@ npm run app:dev
 npm run dist:win
 ```
 
+正式发布时需要把公网 HTTPS 授权地址写入安装包：
+
+```powershell
+$env:GAOKAO_LICENSE_API_URL = "https://license.example.com"
+npm run dist:win
+```
+
 该命令会编译 GUI、把 Playwright Chromium 安装到项目本地目录，并生成：
 
 - `dist-electron/高考成绩查询助手 Setup 0.1.0.exe`：Windows 安装版
@@ -70,7 +112,20 @@ npm run dist:win
 npm run test:packaged
 ```
 
-当前开发版本未配置代码签名证书和自定义图标，Windows 可能显示“未知发布者”，程序图标暂时使用 Electron 默认图标。
+当前开发版本未配置代码签名证书和自定义图标，Windows 可能显示“未知发布者”，程序图标暂时使用 Electron 默认图标。配置 electron-builder 证书变量后，可使用 `npm run dist:win:signed` 构建签名版本。
+
+### 软件授权
+
+桌面端现在必须先完成授权，未授权时不能预览学生数据或启动查询。默认规则：
+
+- 一个激活码绑定一台 Windows 设备
+- 每个激活码必须设置固定到期日
+- 在线授权每 7 天校验一次，服务异常时宽限 3 天
+- 支持 `.gkreq` / `.gklic` 离线申请与许可证
+- 本地许可证由 Windows DPAPI 加密保存
+- 安装包只包含验签公钥，不包含签发私钥
+
+首次部署授权系统、生成密钥、启动管理后台和 Docker VPS 部署方法见 [`license-server/README.md`](license-server/README.md)。
 
 GUI 每次运行会在输出目录下创建独立运行文件夹。开发模式默认使用 `output/gui-runs/`；安装版默认使用“文档/高考成绩查询助手/运行结果”。每个运行文件夹包含：
 
@@ -101,7 +156,9 @@ demo 输出位置：
 
 demo 默认跳过验证码输入提示，便于一次性跑完。如果要手动体验验证码输入，把 `demo/config.demo.json` 里的 `skipCaptchaPrompt` 改成 `false`。
 
-如果只想手动体验官网式图片验证，可以直接用浏览器打开 `demo/mock_query.html`：点击“点击进行验证”，按提示依次点选“记、辨、饱”，然后点“确定”。`npm run demo` 会自动追加 `?autoCaptcha=1`，用于回归测试时跳过本地模拟验证。如果需要人工填写验证码去掉run_demo.ps1中 `?autoCaptcha=1`
+如果只想手动体验官网式图片验证，可以直接用浏览器打开 `demo/mock_query.html`：点击“点击进行验证”，按提示依次点选“记、辨、饱”，然后点“确定”。`npm run demo` 会根据 `skipCaptchaPrompt` 自动决定是否追加 `?autoCaptcha=1`。
+
+demo 使用受限的 `--demo` 模式，不需要生产许可证；该模式只允许打开仓库内的 `demo/mock_query.html`，不能用于真实查询地址。
 
 5. 一键运行真实查询
 
@@ -205,3 +262,7 @@ npm run night -- -Resume
 - 不要使用在线验证码识别服务
 - 查询结束后妥善处理 `data/`、`output/`、`work/` 中的敏感文件
 - 分享结果时只分享必要成绩，不传播身份证号/准考证号
+
+## 许可证
+
+当前仓库尚未附加开源许可证。公开可见不等于授权他人复制、修改或分发；如需开放协作，请在发布前选择并添加合适的许可证。

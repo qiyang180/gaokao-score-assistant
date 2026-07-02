@@ -1,7 +1,7 @@
 {
   "queryUrl": "",
   "headless": false,
-  "skipCaptchaPrompt": false,
+  "skipCaptchaPrompt": true,
   "slowMoMs": 80,
   "navigationTimeoutMs": 30000,
   "resultTimeoutMs": 30000,

@@ -1,0 +1,4 @@
+{$LICENSE_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy license-server:8787
+}

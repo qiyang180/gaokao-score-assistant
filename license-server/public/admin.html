@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>授权管理</title>
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <main>
+      <section id="login-view" class="login-view">
+        <form id="login-form" class="login-panel">
+          <div>
+            <span class="eyebrow">高考成绩查询助手</span>
+            <h1>授权管理</h1>
+          </div>
+          <label>
+            管理员账号
+            <input id="username" autocomplete="username" required />
+          </label>
+          <label>
+            管理员密码
+            <input id="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary" type="submit">登录</button>
+          <p id="login-error" class="error" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="dashboard-view" class="dashboard" hidden>
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">高考成绩查询助手</span>
+            <h1>授权管理</h1>
+          </div>
+          <div class="topbar-actions">
+            <span id="admin-name"></span>
+            <button id="refresh-button" type="button">刷新</button>
+            <button id="logout-button" type="button">退出</button>
+          </div>
+        </header>
+
+        <div id="notice" class="notice" hidden></div>
+
+        <section class="create-band">
+          <div>
+            <h2>创建激活码</h2>
+            <p>一码一机，到期日为必填项。</p>
+          </div>
+          <form id="create-form" class="create-form">
+            <label>
+              客户名称
+              <input id="customer" required maxlength="100" />
+            </label>
+            <label>
+              到期日期
+              <input id="expires-at" type="date" required />
+            </label>
+            <button class="primary" type="submit">生成激活码</button>
+          </form>
+        </section>
+
+        <nav class="tabs" aria-label="管理视图">
+          <button class="tab active" data-tab="codes" type="button">激活码</button>
+          <button class="tab" data-tab="offline" type="button">离线签发</button>
+          <button class="tab" data-tab="audit" type="button">审计日志</button>
+        </nav>
+
+        <section id="tab-codes" class="tab-panel">
+          <div class="section-head">
+            <h2>激活码与设备</h2>
+            <span id="code-count">0 条</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>客户</th>
+                  <th>激活码前缀</th>
+                  <th>到期时间</th>
+                  <th>状态</th>
+                  <th>设备</th>
+                  <th>模式</th>
+                  <th>最近激活</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="codes-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-offline" class="tab-panel" hidden>
+          <div class="section-head">
+            <div>
+              <h2>签发离线许可证</h2>
+              <p>导入客户设备生成的 .gkreq 文件。</p>
+            </div>
+          </div>
+          <form id="offline-form" class="offline-form">
+            <label>
+              离线申请文件
+              <input id="request-file" type="file" accept=".gkreq,application/json" required />
+            </label>
+            <label>
+              使用激活码
+              <select id="offline-code" required></select>
+            </label>
+            <div id="request-preview" class="request-preview">尚未选择申请文件</div>
+            <button class="primary" type="submit">签发并下载 .gklic</button>
+          </form>
+        </section>
+
+        <section id="tab-audit" class="tab-panel" hidden>
+          <div class="section-head">
+            <h2>最近审计事件</h2>
+            <span>最多 100 条</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>事件</th>
+                  <th>操作者</th>
+                  <th>目标</th>
+                  <th>详情</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="./admin.js"></script>
+  </body>
+</html>

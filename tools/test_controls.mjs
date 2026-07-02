@@ -70,6 +70,7 @@ async function runScenario(name, onEvent) {
     controlFile,
     '--url',
     demoUrl.href,
+    '--demo',
     '--reset-results',
   ], {
     cwd: projectRoot,

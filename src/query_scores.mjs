@@ -2,10 +2,47 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import licenseProtocol from '../shared/license_protocol.cjs';
+import deviceModule from '../app/licensing/device.cjs';
+import trustedKeysModule from '../app/licensing/trusted_keys.cjs';
 
 const DEFAULT_RESULTS = path.join('output', 'results.jsonl');
 const EVENT_PREFIX = '@@GAOKAO_EVENT@@ ';
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const demoPagePath = path.join(projectRoot, 'demo', 'mock_query.html');
+const { PRODUCT_ID, verifyLicense } = licenseProtocol;
+const { getDeviceId } = deviceModule;
+const { loadTrustedKeys } = trustedKeysModule;
+
+function verifyRuntimeLicense(args) {
+  if (args.demo) {
+    let requestedPath;
+    try {
+      requestedPath = fileURLToPath(new URL(args.url));
+    } catch {
+      throw new Error('--demo requires a valid file URL');
+    }
+    if (path.resolve(requestedPath) !== path.resolve(demoPagePath)) {
+      throw new Error('--demo can only open demo/mock_query.html');
+    }
+    return;
+  }
+
+  let token = process.env.GAOKAO_LICENSE_TOKEN;
+  if (!token && args.licenseFile) {
+    const content = JSON.parse(fs.readFileSync(args.licenseFile, 'utf8'));
+    token = content.token;
+  }
+  if (!token) {
+    throw new Error('缺少有效许可证，无法启动查询；请通过桌面版激活或使用 --license-file');
+  }
+  verifyLicense(token, loadTrustedKeys(), {
+    product: PRODUCT_ID,
+    deviceId: getDeviceId(),
+  });
+}
 
 function parseArgs(argv) {
   const args = {
@@ -23,6 +60,8 @@ function parseArgs(argv) {
     minDelayMs: null,
     maxDelayMs: null,
     resultTimeoutMs: null,
+    licenseFile: '',
+    demo: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -68,6 +107,11 @@ function parseArgs(argv) {
     } else if (key === '--result-timeout-ms') {
       args.resultTimeoutMs = Number(value);
       i += 1;
+    } else if (key === '--license-file') {
+      args.licenseFile = value;
+      i += 1;
+    } else if (key === '--demo') {
+      args.demo = true;
     }
   }
 
@@ -1128,6 +1172,7 @@ async function queryOneStudent(page, rl, config, student, index, total, screensh
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  verifyRuntimeLicense(args);
   if (
     args.config === 'config.local.json'
     && !fs.existsSync(args.config)

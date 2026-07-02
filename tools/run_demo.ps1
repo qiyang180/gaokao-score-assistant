@@ -13,9 +13,9 @@ if (-not (Test-Path $Config)) {
   throw "Demo config file not found: $Config"
 }
 
+$demoConfig = Get-Content -Raw -LiteralPath $Config | ConvertFrom-Json
 $mockPagePath = (Resolve-Path "demo\mock_query.html").Path
-# $mockPageUrl = "$(([System.Uri]$mockPagePath).AbsoluteUri)?autoCaptcha=1"
-$mockPageUrl = "$(([System.Uri]$mockPagePath).AbsoluteUri)" + $(if ($config.skipCaptchaPrompt) {'?autoCaptcha=1'} else {''})
+$mockPageUrl = "$(([System.Uri]$mockPagePath).AbsoluteUri)" + $(if ($demoConfig.skipCaptchaPrompt) {'?autoCaptcha=1'} else {''})
 
 node tools\normalize_students.mjs --input $Students --out work\demo_students.csv
 if ($LASTEXITCODE -ne 0) {
@@ -41,7 +41,8 @@ $queryArgs = @(
   "--control-file",
   "output\demo\control.json",
   "--url",
-  $mockPageUrl
+  $mockPageUrl,
+  "--demo"
 )
 
 & npm @queryArgs

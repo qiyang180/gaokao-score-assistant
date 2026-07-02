@@ -15,8 +15,18 @@ function basename(filePath) {
   return (filePath || '').split(/[\\/]/).pop() || '';
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return '-';
+  }
+  return new Date(value).toLocaleString('zh-CN', { hour12: false });
+}
+
 function App() {
   const [defaults, setDefaults] = useState(null);
+  const [licenseState, setLicenseState] = useState(null);
+  const [activationCode, setActivationCode] = useState('');
+  const [licenseBusy, setLicenseBusy] = useState(false);
   const [studentsFile, setStudentsFile] = useState('');
   const [outputRoot, setOutputRoot] = useState('');
   const [queryUrl, setQueryUrl] = useState('');
@@ -53,6 +63,13 @@ function App() {
         setMessage('安装包缺少 Playwright Chromium，请重新安装完整版本。');
       }
     });
+    window.gaokao.getLicenseState()
+      .then(setLicenseState)
+      .catch((error) => setLicenseState({
+        usable: false,
+        status: 'LICENSE_ERROR',
+        message: error.message,
+      }));
     const unsubs = [
       window.gaokao.onRunStarted((data) => {
         setPaths(data);
@@ -165,6 +182,62 @@ function App() {
     await previewStudents(file);
   }
 
+  async function activateLicense() {
+    setLicenseBusy(true);
+    setMessage('');
+    try {
+      const state = await window.gaokao.activateLicense({ activationCode });
+      setLicenseState(state);
+      setActivationCode('');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
+  async function refreshLicense() {
+    setLicenseBusy(true);
+    setMessage('');
+    try {
+      setLicenseState(await window.gaokao.refreshLicense());
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
+  async function exportOfflineRequest() {
+    setLicenseBusy(true);
+    setMessage('');
+    try {
+      const result = await window.gaokao.exportOfflineRequest();
+      if (!result.canceled) {
+        setMessage(`离线申请已保存：${result.path}`);
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
+  async function importOfflineLicense() {
+    setLicenseBusy(true);
+    setMessage('');
+    try {
+      const result = await window.gaokao.importOfflineLicense();
+      if (!result.canceled) {
+        setLicenseState(result.state);
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
   async function previewStudents(file = studentsFile) {
     if (!file) {
       return;
@@ -255,6 +328,29 @@ function App() {
   const finished = counts.ok + counts.failed + counts.skipped + counts.no_scores;
   const progress = progressTotal ? Math.round((finished / progressTotal) * 100) : 0;
 
+  if (!licenseState) {
+    return (
+      <main className="license-shell">
+        <div className="license-loading">正在检查软件授权...</div>
+      </main>
+    );
+  }
+
+  if (!licenseState.usable) {
+    return (
+      <ActivationView
+        activationCode={activationCode}
+        busy={licenseBusy}
+        licenseState={licenseState}
+        message={message}
+        onActivationCodeChange={setActivationCode}
+        onActivate={activateLicense}
+        onExport={exportOfflineRequest}
+        onImport={importOfflineLicense}
+      />
+    );
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -262,9 +358,19 @@ function App() {
           <h1>高考成绩查询助手</h1>
           <p>选择学生表，人工完成验证码，程序自动查询、截图并生成汇总。</p>
         </div>
-        <div className={`state-pill state-${runState}`}>{runState}</div>
+        <div className="topbar-status">
+          <div className="license-summary">
+            <strong>{licenseState.customer}</strong>
+            <span>{licenseState.mode === 'offline' ? '离线授权' : '在线授权'} · 至 {formatDateTime(licenseState.expiresAt)}</span>
+          </div>
+          {licenseState.mode === 'online' && (
+            <button onClick={refreshLicense} disabled={licenseBusy}>刷新授权</button>
+          )}
+          <div className={`state-pill state-${runState}`}>{runState}</div>
+        </div>
       </header>
 
+      {licenseState.message && <div className="alert">{licenseState.message}</div>}
       {message && <div className="alert">{message}</div>}
 
       <section className="workspace">
@@ -442,6 +548,69 @@ function App() {
             </div>
           </section>
         </section>
+      </section>
+    </main>
+  );
+}
+
+function ActivationView({
+  activationCode,
+  busy,
+  licenseState,
+  message,
+  onActivationCodeChange,
+  onActivate,
+  onExport,
+  onImport,
+}) {
+  return (
+    <main className="license-shell">
+      <header className="license-header">
+        <span>高考成绩查询助手</span>
+        <h1>软件授权</h1>
+        <p>此设备必须完成授权后才能导入学生信息或启动查询。</p>
+      </header>
+
+      <section className="activation-tool">
+        {(message || licenseState.message) && (
+          <div className="license-alert">{message || licenseState.message}</div>
+        )}
+
+        <div className="device-info">
+          <span>本机设备码</span>
+          <strong>{licenseState.deviceCode || '无法读取'}</strong>
+          <p>授权只绑定此设备码，不会上传学生表或成绩数据。</p>
+        </div>
+
+        <div className="activation-form">
+          <label>
+            激活码
+            <input
+              value={activationCode}
+              onChange={(event) => onActivationCodeChange(event.target.value.toUpperCase())}
+              placeholder="GK26-XXXX-XXXX-XXXX-XXXX"
+              disabled={busy}
+            />
+          </label>
+          <button
+            className="primary"
+            onClick={onActivate}
+            disabled={busy || !activationCode.trim()}
+          >
+            {busy ? '正在处理...' : '在线激活'}
+          </button>
+        </div>
+
+        <div className="offline-actions">
+          <div>
+            <h2>离线授权</h2>
+            <p>目标电脑无法连接授权服务器时，先导出申请文件，再导入管理员签发的许可证。</p>
+          </div>
+          <div>
+            <button onClick={onExport} disabled={busy}>导出申请</button>
+            <button onClick={onImport} disabled={busy}>导入许可证</button>
+          </div>
+        </div>
       </section>
     </main>
   );

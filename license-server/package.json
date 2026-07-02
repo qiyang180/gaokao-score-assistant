@@ -1,0 +1,20 @@
+{
+  "name": "gaokao-license-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "dev": "node --watch src/index.mjs",
+    "hash-password": "node scripts/hash_password.mjs",
+    "setup:local": "node scripts/setup_local.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.10.0",
+    "dotenv": "16.6.1",
+    "express": "5.1.0",
+    "express-rate-limit": "8.1.0",
+    "helmet": "8.1.0"
+  }
+}

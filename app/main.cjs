@@ -1,13 +1,16 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { LicenseManager } = require('./licensing/manager.cjs');
 
 const EVENT_PREFIX = '@@GAOKAO_EVENT@@ ';
 const projectRoot = app.getAppPath();
 
 let mainWindow = null;
 let currentRun = null;
+let licenseManager = null;
+let licenseManagerError = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -144,7 +147,7 @@ function readStudentsCsv(csvPath) {
 function runBuffered(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      cwd: projectRoot,
+      cwd: app.isPackaged ? process.resourcesPath : projectRoot,
       windowsHide: true,
       ...options,
     });
@@ -165,6 +168,10 @@ function runBuffered(command, args, options = {}) {
       reject(new Error((stderr || stdout || `${command} exited with code ${code}`).trim()));
     });
   });
+}
+
+function bundledPath(...segments) {
+  return path.join(projectRoot, ...segments);
 }
 
 function electronNodeOptions(options = {}) {
@@ -257,6 +264,28 @@ function resolveConfigPath(preferredPath = '') {
   return candidates.find((candidate) => fs.existsSync(candidate)) || '';
 }
 
+function getLicenseManager() {
+  if (licenseManagerError) {
+    throw licenseManagerError;
+  }
+  if (!licenseManager) {
+    throw new Error('授权模块尚未初始化');
+  }
+  return licenseManager;
+}
+
+function resolveLicenseApiUrl() {
+  if (process.env.GAOKAO_LICENSE_API_URL) {
+    return process.env.GAOKAO_LICENSE_API_URL;
+  }
+  const buildConfig = readJson(bundledPath('dist', 'license-config.json'));
+  if (buildConfig.licenseServerUrl) {
+    return buildConfig.licenseServerUrl;
+  }
+  const config = readJson(resolveConfigPath());
+  return config.licenseServerUrl || 'http://127.0.0.1:8787';
+}
+
 function defaultOutputRoot() {
   if (app.isPackaged) {
     return path.join(app.getPath('documents'), '高考成绩查询助手', '运行结果');
@@ -286,7 +315,7 @@ function hasChromium(browsersPath) {
 async function buildSummary(run, finalStatus = 'completed') {
   send('gaokao:log', { stream: 'system', text: '正在生成 Excel 汇总表...' });
   await runNodeBuffered([
-    'tools/build_summary.mjs',
+    bundledPath('tools', 'build_summary.mjs'),
     '--results',
     run.resultsPath,
     '--students',
@@ -334,6 +363,50 @@ ipcMain.handle('gaokao:get-defaults', async () => {
   };
 });
 
+ipcMain.handle('gaokao:get-license-state', async () => {
+  return getLicenseManager().inspect({ refreshIfNeeded: true });
+});
+
+ipcMain.handle('gaokao:activate-license', async (_event, { activationCode }) => {
+  return getLicenseManager().activate(activationCode);
+});
+
+ipcMain.handle('gaokao:refresh-license', async () => {
+  return getLicenseManager().refresh();
+});
+
+ipcMain.handle('gaokao:export-offline-request', async () => {
+  const manager = getLicenseManager();
+  const request = manager.createOfflineRequest();
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '导出离线授权申请',
+    defaultPath: path.join(
+      app.getPath('documents'),
+      `高考查询授权-${request.deviceCode}.gkreq`,
+    ),
+    filters: [{ name: '离线授权申请', extensions: ['gkreq'] }],
+  });
+  if (result.canceled || !result.filePath) {
+    return { canceled: true };
+  }
+  fs.writeFileSync(result.filePath, JSON.stringify(request, null, 2), 'utf8');
+  return { canceled: false, path: result.filePath };
+});
+
+ipcMain.handle('gaokao:import-offline-license', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '导入离线许可证',
+    properties: ['openFile'],
+    filters: [{ name: '离线许可证', extensions: ['gklic'] }],
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+  const content = fs.readFileSync(result.filePaths[0], 'utf8');
+  const state = await getLicenseManager().importOfflineLicense(content);
+  return { canceled: false, state };
+});
+
 ipcMain.handle('gaokao:select-students', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '选择学生 Excel/CSV',
@@ -355,6 +428,7 @@ ipcMain.handle('gaokao:select-output-dir', async () => {
 });
 
 ipcMain.handle('gaokao:preview-students', async (_event, { studentsFile }) => {
+  await getLicenseManager().assertUsable();
   if (!studentsFile || !fs.existsSync(studentsFile)) {
     throw new Error('学生表不存在');
   }
@@ -362,7 +436,7 @@ ipcMain.handle('gaokao:preview-students', async (_event, { studentsFile }) => {
   const previewCsv = path.join(previewDir, 'gui_preview_students.csv');
   const previewReport = path.join(previewDir, 'gui_preview_report.json');
   await runNodeBuffered([
-    'tools/normalize_students.mjs',
+    bundledPath('tools', 'normalize_students.mjs'),
     '--input',
     studentsFile,
     '--out',
@@ -385,6 +459,7 @@ ipcMain.handle('gaokao:preview-students', async (_event, { studentsFile }) => {
 });
 
 ipcMain.handle('gaokao:start-run', async (_event, options) => {
+  const license = await getLicenseManager().assertUsable();
   if (currentRun?.queryProcess) {
     throw new Error('已有查询任务正在运行');
   }
@@ -412,7 +487,7 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   fs.writeFileSync(logPath, '', 'utf8');
 
   await runNodeBuffered([
-    'tools/normalize_students.mjs',
+    bundledPath('tools', 'normalize_students.mjs'),
     '--input',
     options.studentsFile,
     '--out',
@@ -440,7 +515,7 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   }
 
   const args = [
-    'src/query_scores.mjs',
+    bundledPath('src', 'query_scores.mjs'),
     '--students',
     studentsCsv,
     '--config',
@@ -489,8 +564,11 @@ ipcMain.handle('gaokao:start-run', async (_event, options) => {
   writeControl('resume');
 
   const child = spawn(process.execPath, args, electronNodeOptions({
-    cwd: projectRoot,
+    cwd: app.isPackaged ? process.resourcesPath : projectRoot,
     windowsHide: false,
+    env: {
+      GAOKAO_LICENSE_TOKEN: license.token,
+    },
   }));
   run.queryProcess = child;
   send('gaokao:run-started', {
@@ -574,7 +652,19 @@ ipcMain.handle('gaokao:open-path', async (_event, targetPath) => {
   return shell.openPath(targetPath);
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  try {
+    licenseManager = new LicenseManager({
+      app,
+      safeStorage,
+      apiUrl: resolveLicenseApiUrl(),
+      appVersion: app.getVersion(),
+    });
+  } catch (error) {
+    licenseManagerError = error;
+  }
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (currentRun?.queryProcess) {

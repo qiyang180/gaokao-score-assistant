@@ -1,4 +1,5 @@
 {
+  "licenseServerUrl": "http://127.0.0.1:8787",
   "queryUrl": "https://pzwb.haeea.cn/stu",
   "headless": false,
   "slowMoMs": 80,

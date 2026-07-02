@@ -83,6 +83,29 @@ label {
   margin: 0;
 }
 
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-status > button {
+  border-color: #7891a9;
+  color: #fff;
+  background: transparent;
+}
+
+.license-summary {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.license-summary span {
+  color: #d7e2ee;
+  font-size: 12px;
+}
+
 .topbar h1 {
   font-size: 22px;
 }
@@ -107,6 +130,120 @@ label {
   border: 1px solid #d59a2a;
   border-radius: 6px;
   background: #fff6df;
+}
+
+.license-shell {
+  min-height: 100vh;
+  color: #17202a;
+  background: #eef2f5;
+}
+
+.license-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: #52606d;
+}
+
+.license-header {
+  padding: 52px max(24px, calc((100vw - 760px) / 2)) 40px;
+  color: #fff;
+  background: #16324f;
+}
+
+.license-header span {
+  color: #a9c3dc;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.license-header h1 {
+  margin: 8px 0 0;
+  font-size: 32px;
+  letter-spacing: 0;
+}
+
+.license-header p {
+  margin: 10px 0 0;
+  color: #d7e2ee;
+}
+
+.activation-tool {
+  display: grid;
+  width: min(760px, calc(100% - 32px));
+  gap: 22px;
+  margin: -18px auto 40px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  padding: 26px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(22 50 79 / 10%);
+}
+
+.license-alert {
+  border: 1px solid #d59a2a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #6f4d0a;
+  background: #fff6df;
+}
+
+.device-info {
+  display: grid;
+  gap: 7px;
+  border-bottom: 1px solid #e0e5ea;
+  padding-bottom: 20px;
+}
+
+.device-info span {
+  color: #52606d;
+  font-size: 13px;
+}
+
+.device-info strong {
+  color: #16324f;
+  font-family: Consolas, monospace;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.device-info p,
+.offline-actions p {
+  margin: 0;
+  color: #6b7785;
+  font-size: 13px;
+}
+
+.activation-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: end;
+  gap: 12px;
+}
+
+.activation-form input {
+  font-family: Consolas, monospace;
+  text-transform: uppercase;
+}
+
+.offline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid #e0e5ea;
+  padding-top: 20px;
+}
+
+.offline-actions h2 {
+  margin: 0 0 5px;
+  font-size: 16px;
+}
+
+.offline-actions > div:last-child {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
 }
 
 .workspace {
