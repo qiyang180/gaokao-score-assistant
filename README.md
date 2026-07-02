@@ -1,268 +1,305 @@
-# 河南高考成绩批量查询助手
+# Gaokao Score Assistant
 
-这个项目用于在官方成绩查询入口开放后，批量完成：
+> A Windows desktop application for batch querying, reviewing, and exporting Gaokao scores with Excel and Playwright.
 
-- 自动填写学生姓名、身份证号/准考证号
-- 人工输入验证码
-- 自动提交查询
-- 自动保存每位学生成绩截图
-- 自动提取页面成绩并汇总为 Excel
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
+![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933)
+![Electron](https://img.shields.io/badge/Electron-33-47848F)
+![License](https://img.shields.io/badge/license-not%20specified-lightgrey)
 
-验证码保留人工输入，不做验证码破解或绕过。
+高考成绩查询助手是一套面向 Windows 的本地半自动工作流，用于导入学生 Excel、辅助完成官方页面查询、保存成绩截图，并生成汇总表。验证码始终由用户本人完成，项目不提供验证码破解或绕过功能。
 
-仓库中的学生姓名、证件号码和成绩均为虚构测试数据。真实学生表、查询结果、截图、日志、许可证私钥和授权数据库都被 `.gitignore` 排除，禁止强制提交这些文件。
+## 功能特性
 
-## 项目结构
+- 导入 `.xlsx` 或 `.csv` 学生表，自动识别常见学校表头
+- 校验姓名及身份证号、准考证号、考生号、报名序号等查询字段
+- 通过 Playwright 自动填写查询页面，并保留人工验证码环节
+- 支持暂停、继续、跳过、重试当前学生和停止任务
+- 保存逐个学生的查询结果、失败记录和页面截图
+- 将结果汇总为 Excel，支持复用已有成绩汇总模板
+- 提供不连接真实官网的本地 Demo
+- 提供 Electron GUI、Windows 安装版和免安装版构建
+- 支持在线激活、设备绑定和离线许可证
 
-```text
-app/                 Electron 主进程、预加载脚本和 React GUI
-src/                 Playwright 成绩查询核心
-tools/               学生表标准化、汇总、打包和测试脚本
-demo/                不连接官网的本地模拟页面与虚构数据
-shared/              客户端与授权服务共用的许可证协议
-license-server/      独立的授权服务、管理后台和 Docker 配置
-test/                授权协议与桌面端授权测试
-data/                本地学生表目录，仅提交虚构 CSV 模板
-output/、work/        运行结果与中间文件，不提交
-```
+## 使用边界
 
-开发环境需要 Windows、PowerShell、Node.js 18 或更高版本。首次克隆后安装桌面端依赖：
+本项目仅适用于已获得学生、监护人或所属机构明确授权的成绩查询工作。使用者必须遵守目标网站的服务条款、访问频率限制及当地个人信息保护要求。
+
+- 不要将真实学生数据提交到第三方服务
+- 不要使用在线验证码识别或其他绕过措施
+- 不要把学生表、查询结果、截图或日志提交到 Git
+- 查询结束后应按所在机构的数据管理要求清理本地文件
+
+## 技术栈
+
+| 模块 | 技术 |
+| --- | --- |
+| 桌面端 | Electron、React、Vite |
+| 浏览器自动化 | Playwright |
+| Excel 处理 | ExcelJS |
+| 授权服务 | Node.js、Express、SQLite |
+| 部署 | electron-builder、Docker Compose、Caddy |
+
+## 环境要求
+
+- Windows 10/11
+- Node.js 18 或更高版本
+- npm
+- PowerShell 5.1 或 PowerShell 7
+
+## 快速开始
+
+### 1. 克隆并安装
 
 ```powershell
+git clone https://github.com/qiyang180/gaokao-score-assistant.git
+cd gaokao-score-assistant
 npm install
+npm run install:browsers
 ```
 
-如需运行完整授权测试或启动授权服务，还要安装服务端依赖：
+### 2. 运行本地 Demo
+
+```powershell
+npm run demo
+```
+
+Demo 只访问仓库内的 `demo/mock_query.html`，使用虚构学生信息，不连接真实成绩网站，也不需要生产许可证。
+
+运行完成后可在 `output/demo/` 查看：
+
+- `results.jsonl`：结构化查询结果
+- `summary.xlsx`：Excel 汇总表
+- `screenshots/`：每名测试学生的页面截图
+- `events.jsonl`：运行事件记录
+- `failed_students.csv`：失败或无成绩记录
+
+## 启动桌面端
+
+桌面端开发模式需要先完成本地授权服务初始化。
+
+### 1. 生成本地开发密钥
+
+```powershell
+npm run license:keygen -- local-dev
+```
+
+公开仓库只包含生产验签公钥，不包含对应私钥。上面的命令会创建一套独立的本地开发密钥，并将被忽略的 `local-dev.pem` 加入桌面端信任目录。
+
+该命令只应执行一次。私钥和口令保存在被 Git 忽略的 `.license-secrets/`，必须分别安全备份。
+
+### 2. 初始化授权服务
 
 ```powershell
 npm --prefix license-server install
+npm --prefix license-server run setup:local
 ```
 
-常规回归检查：
+然后在被忽略的 `license-server/.env` 中修改以下三项：
+
+```dotenv
+LICENSE_KEY_ID=local-dev
+LICENSE_PRIVATE_KEY_PATH=../.license-secrets/local-dev-private.pem
+LICENSE_KEY_PASSPHRASE_FILE=../.license-secrets/local-dev-passphrase.txt
+```
+
+启动服务：
 
 ```powershell
-npm test
-npm run app:build
+npm run license:server
 ```
 
-## 当前可提前完成的工作
+本地管理后台地址：
 
-1. 准备学生信息表
-   - 参考 `data/students_template.csv`
-   - 支持字段：`姓名`、`身份证号`、`准考证号`、`考生号`、`报名序号`
-   - 也兼容常见学校表头，例如 `序号`、`班级`、`姓名`、`性别`、`考点`、`身份证号`、`考生号`、`报名序号`
-   - 额外列会被自动忽略；`考生号`、`报名序号` 会被独立保留，便于真实页面需要哪个就填写哪个
-   - 每行至少要有姓名，以及身份证号、准考证号、考生号、报名序号之一
-
-2. 准备本地配置
-   - 默认使用 `config.local.json`；文件不存在时会自动回退到 `config.example.json`
-   - 需要本地自定义时，可复制 `config.example.json` 为 `config.local.json` 再修改
-   - 默认地址是 `https://pzwb.haeea.cn/stu`
-   - 脚本会自动尝试定位姓名、身份证号、准考证号、验证码、查询按钮
-   - 只有自动定位失败时，才需要手动补页面选择器
-
-3. 安装浏览器自动化依赖
-
-```powershell
-npm install
-npm run install:browsers
+```text
+http://127.0.0.1:8787/admin/
 ```
 
-### 启动本地 GUI
+随机管理员密码保存在 `license-server/.local-admin-password.txt`。
 
-GUI 版用于本地半自动查询：选择学生 Excel、逐行校验并预览、启动可见浏览器、实时查看验证码提示/日志/结果，支持暂停、继续、跳过、重试当前学生和停止，最后生成汇总表。无效行会显示原始行号和原因，并禁止启动查询。
+### 3. 启动 GUI
 
-配置区可以直接调整学生之间的最短/最长等待时间，以及提交后等待成绩页面的上限。默认学生间隔为 1–2 秒，结果等待上限为 10 秒；成绩表一旦出现会立即继续，不会固定等满上限。
-
-首次使用需要安装桌面端依赖：
-
-```powershell
-npm install
-npm run install:browsers
-```
-
-开发模式启动：
+保持授权服务运行，另开一个 PowerShell 窗口：
 
 ```powershell
 npm run app:dev
 ```
 
-打包 Windows 程序：
+在管理后台生成激活码后，即可在桌面端完成激活、导入学生表并启动查询。
+
+## 学生表格式
+
+可直接参考 [data/students_template.csv](data/students_template.csv)。
+
+| 字段 | 要求 |
+| --- | --- |
+| `班级` | 可选 |
+| `姓名` | 必填 |
+| `身份证号` | 与下列查询号码至少填写一项 |
+| `准考证号` | 与其他查询号码至少填写一项 |
+| `考生号` | 与其他查询号码至少填写一项 |
+| `报名序号` | 与其他查询号码至少填写一项 |
+
+导入器会忽略无关列，并扫描 Excel 前 20 行定位表头，因此允许在正式表头上方保留学校标题行。
+
+真实学生文件建议保存为：
+
+```text
+data/students.xlsx
+```
+
+`data/` 默认被 Git 忽略，仅虚构模板允许提交。
+
+## 查询配置
+
+需要自定义查询地址或页面选择器时：
+
+```powershell
+Copy-Item config.example.json config.local.json
+```
+
+常用配置：
+
+| 配置项 | 说明 |
+| --- | --- |
+| `queryUrl` | 官方成绩查询地址 |
+| `queryMode` | `idCard` 或 `registrationNo` |
+| `minDelayMs` / `maxDelayMs` | 学生之间的随机等待时间 |
+| `resultTimeoutMs` | 提交后等待成绩页面的最长时间 |
+| `captchaPollMs` | 检测人工验证完成状态的间隔 |
+| `selectors` | 页面输入框、按钮和结果区域选择器 |
+| `scoreMap` | 各科成绩对应的页面选择器 |
+
+`config.local.json` 包含本机配置并已被 Git 忽略。正式入口页面变化后，可能需要重新校准选择器。
+
+## 输出文件
+
+GUI 每次运行会创建独立目录。开发模式默认写入 `output/gui-runs/`；安装版默认写入用户“文档/高考成绩查询助手/运行结果”。
+
+每次运行通常包含：
+
+```text
+students.csv
+import_report.json
+events.jsonl
+results.jsonl
+failed_students.csv
+score_summary.xlsx
+screenshots/
+run.log
+```
+
+这些文件可能包含个人信息，均不应提交或公开分享。
+
+## 测试
+
+授权服务测试需要先安装其独立依赖：
+
+```powershell
+npm --prefix license-server install
+npm test
+npm run app:build
+```
+
+测试范围包括：
+
+- 暂停、继续、重试、跳过和停止控制
+- 许可证签名、篡改检测、设备绑定和过期校验
+- 在线激活、刷新、吊销和离线许可证
+- 授权管理接口及 CSRF 防护
+
+## Windows 构建
+
+### 本地测试构建
 
 ```powershell
 npm run dist:win
 ```
 
-正式发布时需要把公网 HTTPS 授权地址写入安装包：
+### 正式服务构建
+
+正式发布前必须写入公网 HTTPS 授权服务地址：
 
 ```powershell
 $env:GAOKAO_LICENSE_API_URL = "https://license.example.com"
 npm run dist:win
 ```
 
-该命令会编译 GUI、把 Playwright Chromium 安装到项目本地目录，并生成：
+构建产物位于 `dist-electron/`：
 
-- `dist-electron/高考成绩查询助手 Setup 0.1.0.exe`：Windows 安装版
-- `dist-electron/高考成绩查询助手 0.1.0.exe`：portable 免安装版
-- `dist-electron/win-unpacked/`：解包测试目录
+- `高考成绩查询助手 Setup 0.1.0.exe`：安装版
+- `高考成绩查询助手 0.1.0.exe`：免安装版
+- `win-unpacked/`：本地测试目录
 
-安装包已内置 Chromium，不要求最终用户另装 Node、Python 或浏览器。发布版冒烟测试：
+安装包内置 Chromium，最终用户不需要另外安装 Node.js、Python 或浏览器。
 
-```powershell
-npm run test:packaged
-```
-
-当前开发版本未配置代码签名证书和自定义图标，Windows 可能显示“未知发布者”，程序图标暂时使用 Electron 默认图标。配置 electron-builder 证书变量后，可使用 `npm run dist:win:signed` 构建签名版本。
-
-### 软件授权
-
-桌面端现在必须先完成授权，未授权时不能预览学生数据或启动查询。默认规则：
-
-- 一个激活码绑定一台 Windows 设备
-- 每个激活码必须设置固定到期日
-- 在线授权每 7 天校验一次，服务异常时宽限 3 天
-- 支持 `.gkreq` / `.gklic` 离线申请与许可证
-- 本地许可证由 Windows DPAPI 加密保存
-- 安装包只包含验签公钥，不包含签发私钥
-
-首次部署授权系统、生成密钥、启动管理后台和 Docker VPS 部署方法见 [`license-server/README.md`](license-server/README.md)。
-
-GUI 每次运行会在输出目录下创建独立运行文件夹。开发模式默认使用 `output/gui-runs/`；安装版默认使用“文档/高考成绩查询助手/运行结果”。每个运行文件夹包含：
-
-- `students.csv`：标准化后的学生表
-- `import_report.json`：不含证件值的导入校验统计
-- `events.jsonl`：GUI 事件流
-- `results.jsonl`：原始查询结果
-- `failed_students.csv`：失败/无成绩清单
-- `score_summary.xlsx`：成绩汇总表
-- `screenshots/`：逐个学生截图
-- `run.log`：完整运行日志
-
-GUI 的 Excel 处理和查询子进程使用 Electron 自带的 Node 运行时，安装版不要求用户另外安装 Python 或 Node。开发模式仍需要 npm 来安装依赖和启动项目。
-
-4. 提前跑通本地 demo
-
-在真实入口开放前，可以先跑本地模拟查询页，验证学生表标准化、自动填写、提交、截图、成绩解析和 Excel 汇总。模拟页已经尽量贴近真实官网的字段、结果表格和图片点选验证结构：
+当前项目未提供代码签名证书，Windows 可能显示“未知发布者”。生产发布建议配置代码签名并使用：
 
 ```powershell
-npm run demo
+npm run dist:win:signed
 ```
 
-demo 输出位置：
+## 授权服务器
 
-- 截图：`output/demo/screenshots/`
-- 原始查询结果：`output/demo/results.jsonl`
-- 汇总表：`output/demo/summary.xlsx`
+授权服务负责激活码、设备绑定、在线刷新和离线许可证签发，不接收学生表或成绩数据。
 
-demo 默认跳过验证码输入提示，便于一次性跑完。如果要手动体验验证码输入，把 `demo/config.demo.json` 里的 `skipCaptchaPrompt` 改成 `false`。
+完整的本地联调、Docker、Caddy、VPS 部署和备份说明见：
 
-如果只想手动体验官网式图片验证，可以直接用浏览器打开 `demo/mock_query.html`：点击“点击进行验证”，按提示依次点选“记、辨、饱”，然后点“确定”。`npm run demo` 会根据 `skipCaptchaPrompt` 自动决定是否追加 `?autoCaptcha=1`。
+[license-server/README.md](license-server/README.md)
 
-demo 使用受限的 `--demo` 模式，不需要生产许可证；该模式只允许打开仓库内的 `demo/mock_query.html`，不能用于真实查询地址。
+以下内容绝不能提交：
 
-5. 一键运行真实查询
+- `.license-secrets/`
+- `license-server/.env`
+- `license-server/secrets/`
+- `license-server/data/`
+- 管理员密码及激活码 Pepper
 
-默认读取 `data/students.xlsx`：
+## 项目结构
 
-```powershell
-npm run night
+```text
+app/                 Electron 主进程、授权模块和 React GUI
+src/                 Playwright 查询核心
+tools/               导入、汇总、测试和构建脚本
+demo/                本地模拟页面与虚构数据
+shared/              客户端与服务端共用的许可证协议
+license-server/      授权服务、管理后台和 Docker 配置
+test/                授权相关自动化测试
+data/                本地学生表目录，仅提交虚构模板
+output/              查询结果和截图，不提交
+work/                运行中间文件，不提交
 ```
 
-如果学生表路径不同：
+## 常用命令
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_query.ps1 -Students "你的学生表.xlsx"
-```
+| 命令 | 用途 |
+| --- | --- |
+| `npm run demo` | 运行本地完整 Demo |
+| `npm run app:dev` | 启动 Electron 开发模式 |
+| `npm test` | 运行控制流程和授权测试 |
+| `npm run app:build` | 构建前端资源 |
+| `npm run dist:win` | 构建 Windows 安装版和免安装版 |
+| `npm run test:packaged` | 对已构建应用执行冒烟测试 |
+| `npm run license:keygen -- local-dev` | 生成独立的本地开发签名密钥 |
+| `npm run license:server` | 启动授权服务 |
 
-如果今晚放出的真实查询链接不是默认地址：
+## 已知限制
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_query.ps1 -Students "data/students.xlsx" -Url "真实查询链接"
-```
+- 真实成绩入口开放或页面结构变化后，可能需要更新选择器
+- 图片点选、滑块等人机验证必须由用户本人完成
+- 当前主要支持 Windows
+- 当前安装包未配置正式代码签名和自定义应用图标
+- 本地软件授权只能提高滥用成本，不能替代服务端权限控制
 
-### 中断后续查
+## 参与贡献
 
-脚本默认每次从第 1 个学生重新查，并清空旧的 `output/results.jsonl`。如果中途中断，不要直接重新跑默认命令；改用续查参数，旧结果会保留，新结果会追加。
+提交 Issue 或 Pull Request 前，请确保：
 
-例如 5 名学生查完前 2 名后，在第 3 名中断：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_query.ps1 -Students "data/students.xlsx" -Start 3
-```
-
-也可以让脚本按 `output/results.jsonl` 已有记录数自动续查。比如文件里已有 2 行结果时，下面命令会自动从第 3 名开始：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_query.ps1 -Students "data/students.xlsx" -Resume
-```
-
-如果通过 npm 运行，同样可以传参数：
-
-```powershell
-npm run night -- -Start 3
-npm run night -- -Resume
-```
-
-补充说明：
-
-- `-Start 3` 表示从标准化后学生表的第 3 个学生开始查，前 2 个学生不会重复查询。
-- `-Resume` 会读取 `output/results.jsonl`，按已有结果行数自动定位下一名学生。
-- 续查模式会追加写入 `output/results.jsonl`；如果想丢弃旧结果重新开始，加 `-ResetResults`。
-- 查询异常或页面正常返回但没有提取到成绩时，会写入 `output/failed_students.csv`，里面包含学生姓名、身份证号、考生号/报名序号、错误原因、截图路径和查询时间，便于后续补查。
-
-## 查询时你需要做什么
-
-脚本会逐个学生打开查询页、填写信息，然后在终端提示：
-
-```powershell
-请在浏览器中为 张三 完成图片验证，脚本检测到验证成功后会自动继续。
-```
-
-真实页面使用的是图片点选/滑块类人机验证，不是文本验证码。操作方式是：
-
-- 在浏览器里点击“点击进行验证”
-- 按弹窗要求依次点选图片中的文字或完成滑块
-- 点击验证弹窗里的“确定”
-- 页面显示“验证成功”后，脚本会在约 0.2 秒轮询间隔内识别，并自动点击“查询”
-
-提交后脚本会自动截图、解析成绩，并继续下一个学生。
-
-输出位置：
-
-- 截图：`output/screenshots/学生姓名.png`
-- 原始查询结果：`output/results.jsonl`
-- 失败/无成绩清单：`output/failed_students.csv`
-- 汇总表：`output/score_summary.xlsx`
-
-如果项目上级目录存在 `2026高考成绩汇总--理科.xlsx`，汇总表会沿用该模板；否则生成标准汇总表。两种方式都会用 `work/students.csv` 补齐班级、身份证号码、考生号、报名序号等基础信息。
-
-## 正式开放后需要补的内容
-
-因为当前成绩查询入口未开放，页面字段和成绩表格结构还不能确定。脚本会先自动识别控件；只有自动识别失败时，才需要补 `config.local.json`：
-
-- `queryUrl`：真实成绩查询地址
-- `queryMode`：查询方式，`idCard` 表示“考生号 + 身份证号”，`registrationNo` 表示“考生号 + 报名序号”
-- `selectors.name`：姓名输入框选择器
-- `selectors.idCard`：身份证号输入框选择器，如果页面需要
-- `selectors.admissionNo`：准考证号输入框选择器，如果页面需要
-- `selectors.examineeNo`：考生号输入框选择器，如果页面需要
-- `selectors.registrationNo`：报名序号输入框选择器，如果页面需要
-- `selectors.queryModeIdCard`：身份证号查询方式的单选按钮选择器
-- `selectors.queryModeRegistrationNo`：报名序号查询方式的单选按钮选择器
-- `selectors.captcha`：验证码输入框选择器
-- `selectors.submit`：查询按钮选择器
-- `selectors.resultContainer`：成绩结果区域选择器
-- `captchaPollMs`：检测“验证成功”的轮询间隔，默认建议 `200`
-- `captchaAutoConfirm`：是否让脚本尝试点击验证码弹窗里的“确定”，默认建议 `false`，即人工点击确认
-- `scoreMap`：各科成绩对应的选择器，能配置就最稳；不配置时脚本会尝试自动解析表格和“科目：分数”文本
-
-## 数据安全要求
-
-- 不要把真实学生信息提交到第三方平台
-- 不要使用在线验证码识别服务
-- 查询结束后妥善处理 `data/`、`output/`、`work/` 中的敏感文件
-- 分享结果时只分享必要成绩，不传播身份证号/准考证号
+1. 不包含真实学生数据、成绩、截图、许可证或服务器密钥
+2. `npm test` 通过
+3. `npm run app:build` 通过
+4. 新功能同步更新文档或测试
 
 ## 许可证
 
-当前仓库尚未附加开源许可证。公开可见不等于授权他人复制、修改或分发；如需开放协作，请在发布前选择并添加合适的许可证。
+本仓库当前未附加开源许可证。公开可见不代表允许复制、修改或分发；如需开放协作，请先添加明确的开源许可证。

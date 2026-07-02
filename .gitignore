@@ -5,6 +5,7 @@ config.local.json
 !.env.example
 **/*private*.pem
 **/*passphrase*.txt
+app/licensing/keys/local-*.pem
 *.p12
 *.pfx
 .license-secrets/
@@ -38,6 +39,7 @@ __pycache__/
 *.log
 
 # Editor and OS metadata
+README.backup.md
 .agents/
 .codex/
 .idea/

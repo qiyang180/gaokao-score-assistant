@@ -2,7 +2,7 @@
   "name": "gaokao-score-agent",
   "version": "0.1.0",
   "description": "Windows 本地高考成绩半自动查询与汇总工具",
-  "author": "Local",
+  "author": "yangqi",
   "private": true,
   "main": "app/main.cjs",
   "type": "module",
